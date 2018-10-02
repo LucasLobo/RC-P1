@@ -53,22 +53,58 @@ def connect_to_server(disconnect_on_end = False, user_login = False):
 def process_command(command):
     s = connect_to_server()
     s.send((command + "\n").encode())
-    data = ""
+    server_response = ""
     buffer = s.recv(BUFFER_SIZE).decode()
     while buffer != "":
-        data += buffer
+        server_response += buffer
         buffer = s.recv(BUFFER_SIZE).decode()
 
-    if data != "":
-        print("received data:", data)
-    else:
+    if server_response == "":
         print(command + " - no return")
+        s.close()
+        return
 
-    s.close();
+    else:
+        split_input = server_response.split()
+        response_code = split_input[0]
+        user_response = ""
+
+        if (response_code == "DLR"):
+            user_response = "DLR" + ' '.join(split_input[1:])
+
+        elif (response_code == "BKR"):
+            user_response = "BKR" + ' '.join(split_input[1:])
+
+        elif (response_code == "RSR"):
+            user_response = "RSR" + ' '.join(split_input[1:])
+
+        elif (response_code == "LDR"):
+            user_response = "LDR" + ' '.join(split_input[1:])
+
+        elif (response_code == "LFD"):
+            user_response = "LFD" + ' '.join(split_input[1:])
+
+        elif (response_code == "DDR"):
+            user_response = "DDR" + ' '.join(split_input[1:])
+
+        elif (response_code == "ERR"):
+            user_response = "ERR"
+
+        else:
+            user_response = "Unknown"
+
+        print(user_response)
+        s.close()
+
+
 
 
 user_input = input()
 while True:
+    if len(user_input) == 0:
+        user_input = input()
+        continue
+
     split_input = user_input.split()
     command = split_input[0]
 
