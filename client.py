@@ -51,6 +51,10 @@ def connect_to_server(disconnect_on_end = False, user_login = False):
 
 
 def process_command(command):
+    global user
+    global password
+    global auth
+
     s = connect_to_server()
     s.send((command + "\n").encode())
     server_response = ""
@@ -61,31 +65,57 @@ def process_command(command):
 
     if server_response == "":
         print(command + " - no return")
-        s.close()
-        return
 
     else:
         split_input = server_response.split()
         response_code = split_input[0]
         user_response = ""
 
+        # Delete user
         if (response_code == "DLR"):
-            user_response = "DLR" + ' '.join(split_input[1:])
+            status = split_input[1]
+            if status == "OK":
+                user_response = "User \"" + user + "\" successfully deleted."
+                user = ""
+                password = ""
+                auth = ""
 
+            elif status == "NOK":
+                user_response = "Remove all files from cloud before deleting user."
+            else:
+                user_response = "DLR " + status
+
+        # Backup directory
         elif (response_code == "BKR"):
-            user_response = "BKR" + ' '.join(split_input[1:])
+            user_response = "BKR " + ' '.join(split_input[1:])
 
+        # Restore directory
         elif (response_code == "RSR"):
-            user_response = "RSR" + ' '.join(split_input[1:])
+            user_response = "RSR " + ' '.join(split_input[1:])
 
+        # List directories
         elif (response_code == "LDR"):
-            user_response = "LDR" + ' '.join(split_input[1:])
+            # QUESTION: this code includes validation, should it just be 'user_response = server_response' instead?
+            if split_input[1].isdigit():
+                number_of_dirs = split_input[1]
+                user_response = "LDR " + number_of_dirs + '\n' + ' '.join(split_input[2:eval(number_of_dirs)+2])
 
+
+        # List files in directory
         elif (response_code == "LFD"):
-            user_response = "LFD" + ' '.join(split_input[1:])
+            user_response = "LFD " + ' '.join(split_input[1:])
 
+        # Delete directory
         elif (response_code == "DDR"):
-            user_response = "DDR" + ' '.join(split_input[1:])
+            status = split_input[1]
+            if status == "OK":
+                user_response = "Directory\"" + command.split()[1]+ "\" successfully removed."
+
+            elif status == "NOK":
+                user_response = "Error removing directory \"" + command.split()[1] + "\"."
+
+            else:
+                user_response = "DLR " + status
 
         elif (response_code == "ERR"):
             user_response = "ERR"
@@ -94,7 +124,8 @@ def process_command(command):
             user_response = "Unknown"
 
         print(user_response)
-        s.close()
+
+    s.close()
 
 
 
@@ -119,32 +150,37 @@ while True:
         else:
             print("Incorrect input: username should be numeric with length 5 and password should be alphanumeric with length 8")
 
+    elif auth != "":
+        if command == "deluser":
+            if len(split_input[1:]) == 0:
+                process_command("DLU")
+            else:
+                print("Incorrect input: no arguments expected")
 
-    elif command == "deluser":
-        print("deluser")
+        elif command == "backup":
+            print("backup")
 
-    elif command == "backup":
-        print("backup")
+        elif command == "restore":
+            print("restore")
 
-    elif command == "restore":
-        print("restore")
+        elif command == "dirlist":
+            if len(split_input[1:]) == 0:
+                process_command("LSD")
+            else:
+                print("Incorrect input: no arguments expected")
 
-    elif command == "dirlist":
-        if len(split_input[1:]) == 0:
-            process_command("LSD");
+        elif command == "filelist":
+            print("filelist")
+
+        elif command == "delete":
+            print("delete")
+
+        elif command == "logout":
+            print("logout")
+
         else:
-            print("Incorrect input: no arguments expected")
-
-    elif command == "filelist":
-        print("filelist")
-
-    elif command == "delete":
-        print("delete")
-
-    elif command == "logout":
-        print("logout")
-
+            print("Unknown command")
     else:
-        print("Unknown command")
+        print("User not authenticated")
 
     user_input = input()
