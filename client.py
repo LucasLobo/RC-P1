@@ -14,6 +14,10 @@ def login_is_valid(value):
     return False
 
 def connect_to_server(disconnect_on_end = False, user_login = False):
+    global auth
+    global user
+    global password
+    
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.connect((TCP_IP, TCP_PORT))
     s.send(auth.encode())
@@ -23,6 +27,9 @@ def connect_to_server(disconnect_on_end = False, user_login = False):
 
     if server_response == "ERR\n":
         user_response = "Error"
+        auth = ""
+        user = ""
+        password = ""
 
     elif server_response == "AUR NEW\n":
         user_response = "User \"" + user + "\" created"
@@ -33,9 +40,15 @@ def connect_to_server(disconnect_on_end = False, user_login = False):
 
     elif server_response == "AUR NOK\n":
         user_response = "Wrong password"
+        auth = ""
+        user = ""
+        password = ""
 
     else:
         user_response = "Unknown"
+        auth = ""
+        user = ""
+        password = ""
 
     # Check if return message should be printed: On a normal use
     # the OK message should only be printed during login
@@ -98,7 +111,7 @@ def process_command(command):
             # QUESTION: this code includes validation, should it just be 'user_response = server_response' instead?
             if split_input[1].isdigit():
                 number_of_dirs = split_input[1]
-                user_response = "LDR " + number_of_dirs + '\n' + ' '.join(split_input[2:eval(number_of_dirs)+2])
+                user_response = "Number of directories: " + number_of_dirs + "\n" + ' '.join(split_input[2:eval(number_of_dirs)+2])
 
 
         # List files in directory
