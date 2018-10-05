@@ -28,7 +28,7 @@ def is_set_auth():
     else:
         return False
 
-def login_is_valid(value):
+def is_valid_login(value):
     if len(value) == 2 and len(value[0]) == 5 and value[0].isdigit() and len(value[1]) == 8 and value[1].isalnum():
         return True
     return False
@@ -41,13 +41,13 @@ def display_fail_messages(error = "", usage = "", tip = ""):
     if (tip != ""):
         print("Tip: " + tip)
 
-
-def connect_to_server(disconnect_on_end = False, user_login = False):
+def connect_to_server(ip, port, disconnect_on_end = False, user_login = False):
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
     try:
-        s.connect((TCP_IP, TCP_PORT))
+        s.connect((ip, port))
     except Exception as err:
-        sys.exit("OS error: {0}".format(err))
+        sys.exit("OS error (connect_to_server): {0}".format(err))
 
     s.send(("AUT " + username + " " + password + "\n").encode())
     server_response = s.recv(BUFFER_SIZE).decode()
@@ -85,7 +85,6 @@ def connect_to_server(disconnect_on_end = False, user_login = False):
     else:
         return s
 
-
 def process_command(user_input):
     user_command = user_input[0]
 
@@ -93,9 +92,9 @@ def process_command(user_input):
         if is_set_auth():
             print("Error: User \"" + username + "\" already logged in")
             return
-        elif login_is_valid(user_input[1:]):
+        elif is_valid_login(user_input[1:]):
             set_auth(user_input[1], user_input[2])
-            connect_to_server(True, True)
+            connect_to_server(TCP_IP, TCP_PORT, True, True)
         else:
             display_fail_messages("Error in arguments", "login user pass", "Username should be numeric with length 5 and password should be alphanumeric with length 8")
 
@@ -109,7 +108,7 @@ def process_command(user_input):
 
     elif user_command == "deluser":
         if len(user_input[1:]) == 0:
-            process_client_request("DLU")
+            process_client_cs_request(["DLU"])
         else:
             display_fail_messages("No arguments expected", "deluser")
 
@@ -117,59 +116,207 @@ def process_command(user_input):
         if len(user_input[1:]) == 1:
             directory = user_input[1]
             files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
-            client_request = "BCK " + directory + " " + str(len(files_by_line))
+            client_request = ["BCK", directory, str(len(files_by_line))]
+
             for line in files_by_line:
                 split_line = line.split()
 
                 date = ".".join(split_line[5].split("-")[::-1])
                 time = split_line[6].split(".")[0]
-
                 filename = split_line[8]
-                date_time = date + " " + time
                 size = split_line[4]
+                client_request.extend([filename, date, time, size])
 
-                client_request += " " + filename + " " + date_time + " " + size
-            process_client_request(client_request)
+            process_client_cs_request(client_request)
         else:
             display_fail_messages("Expected one argument", "backup dir", "dir should be the name of the directory you want to backup. Needs to be at the current working path")
 
     elif user_command == "restore":
         if len(user_input[1:]) == 1:
-            process_client_request("RST " + user_input[1])
+            process_client_cs_request(["RST", user_input[1]])
         else:
             display_fail_messages("Expected one argument", "restore dir", "dir should be the name of the directory you want to restore")
 
     elif user_command == "dirlist":
         if len(user_input[1:]) == 0:
-            process_client_request("LSD")
+            process_client_cs_request(["LSD"])
         else:
             display_fail_messages("No arguments expected", "Usage: dirlist")
 
     elif user_command == "filelist":
         if len(user_input[1:]) == 1:
-            process_client_request("RST " + user_input[1])
+            process_client_cs_request(["RST", user_input[1]])
         else:
             display_fail_messages("Expected one argument", "filelist dir", "dir should be the name of the directory whose files you want to see")
 
     elif user_command == "delete":
         if len(user_input[1:]) == 1:
-            process_client_request("DEL " + user_input[1])
+            process_client_cs_request(["DEL", user_input[1]])
         else:
             display_fail_messages("Expected one argument", "delete dir", "dir should be the name of the directory you want to delete")
 
     else:
         print("Unknown command")
 
-
-def process_client_request(client_request):
+def process_client_cs_request(client_request, ip = None, port = None):
 
     # WARNING: this should be done before processing the command, to avoid processing it and then being denied
     if not is_set_auth():
         print("User not authenticated")
         return
 
-    s = connect_to_server()
-    s.send((client_request + "\n").encode())
+    if (ip is None):
+        ip = TCP_IP
+    if (port is None):
+        port = TCP_PORT
+
+    s = connect_to_server(ip, port)
+
+    client_request_len = len(client_request)
+
+    for index in range (0,client_request_len):
+        if type(client_request[index]) is str:
+            s.send(client_request[index].encode())
+        else:
+            s.send(client_request[index])
+        if index < client_request_len - 1:
+            s.send(" ".encode())
+
+    s.send("\n".encode())
+
+    server_response = ""
+    buffer = s.recv(BUFFER_SIZE).decode()
+    while buffer != "":
+        server_response += buffer
+        buffer = s.recv(BUFFER_SIZE).decode()
+
+    if server_response == "":
+        print(" ".join(client_request) + " - no return")
+        s.close()
+
+    else:
+        split_server_response = server_response.split()
+        response_code = split_server_response[0]
+        user_response = ""
+
+        # Delete user
+        if (response_code == "DLR"):
+            s.close()
+            status = split_server_response[1]
+            if status == "OK":
+                user_response = "User \"" + username + "\" successfully deleted"
+                clear_auth()
+
+            elif status == "NOK":
+                user_response = "Remove all files from cloud before deleting user"
+            else:
+                user_response = "Unexpected: " + server_response
+
+        # Backup directory
+        elif (response_code == "BKR"):
+            s.close()
+            if len(split_server_response) == 2:
+                if split_server_response[1] == "EOF":
+                    user_response = "No BS server available. Try again later"
+
+                elif split_server_response[1] == "ERR":
+                    user_response = "Request not correctly formulated"
+                else:
+                    user_response = "Unexpected: " + server_response
+
+            # sucess scenario
+            elif (len(split_server_response) >= 4) and (split_server_response[2].isdigit()) and (split_server_response[3].isdigit()) and (len(split_server_response) == 4 + 4 * int(split_server_response[3])):
+                ip = split_server_response[1]
+                port = int(split_server_response[2])
+
+                directory = client_request[1]
+                number_of_files = int(split_server_response[3])
+                client_request_bs = ["UPL", directory, str(number_of_files)]
+
+                for file_number in range(0,number_of_files):
+                    start_of_file_info = 4 + file_number * 4
+                    end_of_file_info = 8 + file_number * 4
+                    data = open("./" + directory + "/" + split_server_response[start_of_file_info], 'rb').read()
+                    client_request_bs.extend(split_server_response[start_of_file_info : end_of_file_info])
+                    client_request_bs.append(data)
+
+                s, user_response = process_client_bs_request(client_request_bs, ip, port)
+
+            else:
+                user_response = "Unexpected: " + server_response
+
+        # Restore directory
+        elif (response_code == "RSR"):
+            s.close()
+            user_response = server_response
+
+        # List directories
+        elif (response_code == "LDR"):
+            s.close()
+            if split_server_response[1].isdigit():
+                number_of_dirs = int(split_server_response[1])
+                user_response = "Number of directories: " + str(number_of_dirs)
+                if number_of_dirs > 0:
+                    user_response += "\n" + ' '.join(split_server_response[2:number_of_dirs+2])
+            else:
+                user_response = "Unexpected: " + server_response
+
+
+        # List files in directory
+        elif (response_code == "LFD"):
+            s.close()
+            user_response = server_response
+
+        # Delete directory
+        elif (response_code == "DDR"):
+            s.close()
+            status = split_server_response[1]
+            if status == "OK":
+                user_response = "Directory successfully deleted"
+
+            elif status == "NOK":
+                user_response = "Error removing directory"
+
+            else:
+                user_response = "Unexpected: " + server_response
+
+        elif (response_code == "ERR"):
+            s.close()
+            user_response = "ERR"
+
+        else:
+            s.close()
+            user_response = "Unknown"
+
+        print(user_response)
+
+
+def process_client_bs_request(client_request, ip, port):
+    # TODO: refactor code
+
+    if not is_set_auth():
+        print("User not authenticated")
+        return
+
+    if (ip is None):
+        ip = TCP_IP
+    if (port is None):
+        port = TCP_PORT
+
+    s = connect_to_server(ip, port)
+
+    client_request_len = len(client_request)
+
+    for index in range (0,client_request_len):
+        if type(client_request[index]) is str:
+            s.send(client_request[index].encode())
+        else:
+            s.send(client_request[index])
+        if index < client_request_len - 1:
+            s.send(" ".encode())
+
+    s.send("\n".encode())
+
     server_response = ""
     buffer = s.recv(BUFFER_SIZE).decode()
     while buffer != "":
@@ -180,64 +327,24 @@ def process_client_request(client_request):
         print(client_request + " - no return")
 
     else:
-        split_input = server_response.split()
-        response_code = split_input[0]
+        split_server_response = server_response.split()
+        response_code = split_server_response[0]
         user_response = ""
 
-        # Delete user
-        if (response_code == "DLR"):
-            status = split_input[1]
+        if (response_code == "UPR"):
+            status = split_server_response[1]
+            print("Backup to " + ip + " " + str(port))
             if status == "OK":
-                user_response = "User \"" + username + "\" successfully deleted"
-                clear_auth()
+                user_response = "Backup completed"
 
             elif status == "NOK":
-                user_response = "Remove all files from cloud before deleting user"
+                user_response = "Backup failed"
             else:
-                user_response = "DLR " + status
+                user_response = "Unexpected: " + server_response
 
-        # Backup directory
-        elif (response_code == "BKR"):
-            user_response = server_response
+        return (s,user_response)
+    return (s, server_response)
 
-        # Restore directory
-        elif (response_code == "RSR"):
-            user_response = server_response
-
-        # List directories
-        elif (response_code == "LDR"):
-            if split_input[1].isdigit():
-                number_of_dirs = int(split_input[1])
-                user_response = "Number of directories: " + str(number_of_dirs)
-                if number_of_dirs > 0:
-                    user_response += "\n" + ' '.join(split_input[2:number_of_dirs+2])
-
-
-        # List files in directory
-        elif (response_code == "LFD"):
-            user_response = server_response
-
-        # Delete directory
-        elif (response_code == "DDR"):
-            status = split_input[1]
-            if status == "OK":
-                user_response = "Directory \"" + client_request.split()[1]+ "\" successfully removed"
-
-            elif status == "NOK":
-                user_response = "Error removing directory \"" + client_request.split()[1] + "\""
-
-            else:
-                user_response = "DLR " + status
-
-        elif (response_code == "ERR"):
-            user_response = "ERR"
-
-        else:
-            user_response = "Unknown"
-
-        print(user_response)
-
-    s.close()
 
 
 arg_number = len(sys.argv)
