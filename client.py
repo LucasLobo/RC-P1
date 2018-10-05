@@ -107,7 +107,7 @@ def process_command(user_input):
             return
         print("Logged out from user \"" + username + "\"")
         clear_auth()
-        print("Please login")
+        print("Write \"exit\" to exit")
 
     elif user_command == "deluser":
         if len(user_input[1:]) == 0:
@@ -148,7 +148,7 @@ def process_command(user_input):
 
     elif user_command == "filelist":
         if len(user_input[1:]) == 1:
-            process_client_request(["RST", user_input[1]], CENTRAL_SERVER)
+            process_client_request(["LSF", user_input[1]], CENTRAL_SERVER)
         else:
             display_fail_messages("Expected one argument", "filelist dir", "dir should be the name of the directory whose files you want to see")
 
@@ -160,7 +160,6 @@ def process_command(user_input):
 
     else:
         print("Unknown command")
-
 
 def process_client_request(client_request, server_type, ip = None, port = None):
 
@@ -208,7 +207,6 @@ def process_client_request(client_request, server_type, ip = None, port = None):
         print(user_response)
     s.close()
 
-
 def request_cs(client_request, server_response):
     split_server_response = server_response.split()
     response_code = split_server_response[0]
@@ -247,9 +245,10 @@ def request_cs(client_request, server_response):
             for file_number in range(0,number_of_files):
                 start_of_file_info = 4 + file_number * 4
                 end_of_file_info = 8 + file_number * 4
-                data = open("./" + directory + "/" + split_server_response[start_of_file_info], 'rb').read()
-                client_request_bs.extend(split_server_response[start_of_file_info : end_of_file_info])
-                client_request_bs.append(data)
+                file_data = open("./" + directory + "/" + split_server_response[start_of_file_info], 'rb').read()
+                file_info = split_server_response[start_of_file_info : end_of_file_info]
+                client_request_bs.extend(file_info)
+                client_request_bs.append(file_data)
 
             process_client_request(client_request_bs, BACKUP_SERVER, ip, port)
             user_response = "Backup server: " + ip + ":" + str(port)
@@ -273,8 +272,30 @@ def request_cs(client_request, server_response):
 
     # List files in directory
     elif (response_code == "LFD"):
-        user_response = server_response
+        if len(split_server_response) == 2:
+            if split_server_response[1] == "NOK":
+                user_response = "Request cannot be answered"
+            else:
+                user_response = "Unexpected: " + server_response
+        elif (len(split_server_response) >= 4) and (split_server_response[2].isdigit()) and (split_server_response[3].isdigit()) and (len(split_server_response) == 4 + 4 * int(split_server_response[3])):
+            ip = split_server_response[1]
+            port = split_server_response[2]
 
+            directory = client_request[1]
+            number_of_files = int(split_server_response[3])
+            client_request_bs = ["UPL", directory, str(number_of_files)]
+
+            user_response = "Number of files: " + str(number_of_files)
+
+            for file_number in range(0,number_of_files):
+                start_of_file_info = 4 + file_number * 4
+                end_of_file_info = 8 + file_number * 4
+                file_info = split_server_response[start_of_file_info : end_of_file_info]
+                readable_file_info = "Name: " + file_info[0] + " | Date: " + file_info[1] + " | Time: " + file_info[2] + " | Size: " + file_info[3] + " bytes"
+                user_response += "\n" + readable_file_info
+
+        else:
+            user_response = "Unexpected: " + server_response
     # Delete directory
     elif (response_code == "DDR"):
         status = split_server_response[1]
@@ -331,7 +352,7 @@ else:
     sys.exit("Invalid Command!")
 
 
-user_input = input("Please login \n>>> ")
+user_input = input("Please login\nWrite \"exit\" to exit\n>>> ")
 while True:
     if len(user_input) == 0:
         user_input = input(">>> ")
