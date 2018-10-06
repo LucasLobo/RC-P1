@@ -2,6 +2,7 @@
 import socket
 import sys
 import subprocess
+import os
 
 TCP_IP = 'tejo.tecnico.ulisboa.pt'
 TCP_PORT = 58011
@@ -118,19 +119,24 @@ def process_command(user_input):
     elif user_command == "backup":
         if len(user_input[1:]) == 1:
             directory = user_input[1]
-            files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
-            client_request = ["BCK", directory, str(len(files_by_line))]
+            if not os.path.exists(directory):
+                user_response = "Directory does not exit"
+                display_fail_messages("Folder does not exist", "backup dir")
+            else:
 
-            for line in files_by_line:
-                split_line = line.split()
+                files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
+                client_request = ["BCK", directory, str(len(files_by_line))]
 
-                date = ".".join(split_line[5].split("-")[::-1])
-                time = split_line[6].split(".")[0]
-                filename = split_line[8]
-                size = split_line[4]
-                client_request.extend([filename, date, time, size])
+                for line in files_by_line:
+                    split_line = line.split()
 
-            process_client_request(client_request, CENTRAL_SERVER)
+                    date = ".".join(split_line[5].split("-")[::-1])
+                    time = split_line[6].split(".")[0]
+                    filename = split_line[8]
+                    size = split_line[4]
+                    client_request.extend([filename, date, time, size])
+
+                process_client_request(client_request, CENTRAL_SERVER)
         else:
             display_fail_messages("Expected one argument", "backup dir", "dir should be the name of the directory you want to backup. Needs to be at the current working path")
 
@@ -190,14 +196,14 @@ def process_client_request(client_request, server_type, ip = None, port = None):
 
     s.send("\n".encode())
 
-    server_response = ""
-    buffer = s.recv(BUFFER_SIZE).decode()
-    while buffer != "":
+    server_response = b''
+    buffer = s.recv(BUFFER_SIZE)
+    while buffer:
         server_response += buffer
-        buffer = s.recv(BUFFER_SIZE).decode()
+        buffer = s.recv(BUFFER_SIZE)
 
-    if server_response == "":
-        print(" ".join(client_request) + " - no return")
+    if not server_response:
+        print("".join(client_request) + " - no return")
     else:
         user_response = ""
         if server_type is CENTRAL_SERVER:
@@ -208,8 +214,10 @@ def process_client_request(client_request, server_type, ip = None, port = None):
     s.close()
 
 def request_cs(client_request, server_response):
+    server_response = server_response.decode()
     split_server_response = server_response.split()
     response_code = split_server_response[0]
+
     # Delete user
     if (response_code == "DLR"):
         status = split_server_response[1]
@@ -220,7 +228,7 @@ def request_cs(client_request, server_response):
         elif status == "NOK":
             user_response = "Remove all files from cloud before deleting user"
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
 
     # Backup directory
     elif (response_code == "BKR"):
@@ -231,7 +239,7 @@ def request_cs(client_request, server_response):
             elif split_server_response[1] == "ERR":
                 user_response = "Request not correctly formulated"
             else:
-                user_response = "Unexpected: " + server_response
+                user_response = "Unexpected"
 
         # sucess scenario
         elif (len(split_server_response) >= 4) and (split_server_response[2].isdigit()) and (split_server_response[3].isdigit()) and (len(split_server_response) == 4 + 4 * int(split_server_response[3])):
@@ -239,6 +247,11 @@ def request_cs(client_request, server_response):
             port = int(split_server_response[2])
 
             directory = client_request[1]
+
+            if not os.path.exists(directory):
+                user_response = "Directory does not exit"
+                return user_response
+
             number_of_files = int(split_server_response[3])
             client_request_bs = ["UPL", directory, str(number_of_files)]
 
@@ -253,11 +266,28 @@ def request_cs(client_request, server_response):
             process_client_request(client_request_bs, BACKUP_SERVER, ip, port)
             user_response = "Backup server: " + ip + ":" + str(port)
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
 
     # Restore directory
     elif (response_code == "RSR"):
-        user_response = server_response
+        if len(split_server_response) == 2:
+            if split_server_response[1] == "EOK":
+                user_response = "No BS server available. Try again later"
+
+            elif split_server_response[1] == "ERR":
+                user_response = "Request not correctly formulated"
+
+            else:
+                user_response = "Unexpected"
+        elif len(split_server_response) == 3:
+            ip = split_server_response[1]
+            port = int(split_server_response[2])
+            client_request_bs = ["RSB", client_request[1]]
+
+            process_client_request(client_request_bs, BACKUP_SERVER, ip, port)
+            user_response = "Backup server: " + ip + ":" + str(port)
+        else:
+            user_response = "Unexpected"
 
     # List directories
     elif (response_code == "LDR"):
@@ -267,7 +297,7 @@ def request_cs(client_request, server_response):
             if number_of_dirs > 0:
                 user_response += "\n" + ' '.join(split_server_response[2:number_of_dirs+2])
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
 
 
     # List files in directory
@@ -281,9 +311,7 @@ def request_cs(client_request, server_response):
             ip = split_server_response[1]
             port = split_server_response[2]
 
-            directory = client_request[1]
             number_of_files = int(split_server_response[3])
-            client_request_bs = ["UPL", directory, str(number_of_files)]
 
             user_response = "Number of files: " + str(number_of_files)
 
@@ -295,7 +323,7 @@ def request_cs(client_request, server_response):
                 user_response += "\n" + readable_file_info
 
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
     # Delete directory
     elif (response_code == "DDR"):
         status = split_server_response[1]
@@ -306,7 +334,7 @@ def request_cs(client_request, server_response):
             user_response = "Error removing directory"
 
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
 
     elif (response_code == "ERR"):
         user_response = "ERR"
@@ -318,18 +346,52 @@ def request_cs(client_request, server_response):
 
 def request_bs(client_request, server_response):
     split_server_response = server_response.split()
-    response_code = split_server_response[0]
+
+    response_code = split_server_response[0].decode()
     if (response_code == "UPR"):
-        status = split_server_response[1]
+        status = split_server_response[1].decode()
         if status == "OK":
             user_response = "Backup completed"
 
         elif status == "NOK":
             user_response = "Backup failed"
         else:
-            user_response = "Unexpected: " + server_response
+            user_response = "Unexpected"
+    elif (response_code == "RBR"):
+        if len(split_server_response) == 2:
+            status = split_server_response[1].decode()
+            if status == "EOF":
+                user_response = "Directory not found"
+            elif status == "ERR":
+                user_response = "Request not correctly formulated"
+            else:
+                user_response = "Unexpected"
+        elif (len(split_server_response) >= 2) and (split_server_response[1].decode().isdigit()):
+
+            content = server_response.split(b" ", 2)
+            number_of_files = int(content[1].decode())
+            files = content[2:][0]
+
+            directory = client_request[1]
+            if not os.path.exists(directory):
+                os.makedirs(directory)
+
+            for file in range(number_of_files):
+                files = files.split(b" ", 4)
+                current_file_info = files[0:4]
+                current_file_size = int(current_file_info[3].decode())
+                remainder = files[4:][0]
+                data = remainder[0:current_file_size]
+                files = remainder[current_file_size+1:]
+                file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
+                file.write(data)
+
+            user_response = "Successfully restored"
+        else:
+            user_response = "Unexpected"
+
     else:
-        user_response = "Unknown"
+        user_response = "Unknown - BS"
     return user_response
 
 arg_number = len(sys.argv)
