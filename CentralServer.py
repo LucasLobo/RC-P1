@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 import sys
+import os
 import socket
 import os.path
-import datetime
 
 from _thread import *
 from os import path
-from datetime import datetime
 
 # Global Variables
 USER_FILE = "./CentralServer/user_"
@@ -15,7 +14,14 @@ CS_PORT = 58054
 BUFFER_SIZE = 1024
 
 #Function for handling connections. This will be used to create threads
-def clientthread(conn):
+def client_udp_thread(socket,data,addr):
+    
+    reply = 'OK...' + data
+    s.sendto(reply , addr)
+     
+
+#Function for handling connections. This will be used to create threads
+def client_tcp_thread(conn):
     global USER_FILE
     user = ""
     reply = ""
@@ -78,13 +84,15 @@ def clientthread(conn):
     #came out of loop
     conn.close()
 
-def central_server_init():
+#Function to initiate TCP Server
+def tcp_server_init():
     #Variables
     global CS_IP
     global CS_PORT
     
     #Create Socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     
     #Get Host Name
     CS_IP = socket.gethostbyname(socket.gethostname())
@@ -98,7 +106,7 @@ def central_server_init():
      
     #Start listening on Socket
     s.listen(10)
-    print('<<<Waiting for Connections>>>')
+    print('<<<Waiting for TCP Connections>>>')
     
     #now keep talking with the client
     while 1:
@@ -107,9 +115,66 @@ def central_server_init():
         print('Connected with ' + addr[0] + ':' + str(addr[1]))
      
         #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
-        start_new_thread(clientthread ,(conn,))
+        start_new_thread(client_tcp_thread ,(conn,))
+ 
+    s.close
+    os._exit(0)
+
+#Function to initiate UDP Server    
+def udp_server_init():
+    #Variables
+    global CS_IP
+    global CS_PORT
+    
+    #Create Socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    
+    #Get Host Name
+    CS_IP = socket.gethostbyname(socket.gethostname())
+    
+    #Bind Socket to CS IP and CS PORT
+    try:
+        s.bind((CS_IP, CS_PORT))
+    except socket.error as msg:
+        print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+        sys.exit()
+    
+    print('<<<Waiting for UDP Connections>>>')
+    
+    #now keep talking with the client
+    while 1:
+        #wait to accept a connection - blocking call
+        data, address = s.recvfrom(BUFFER_SIZE)
+        print('Connected with ' + address)
+     
+        #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
+        start_new_thread(client_udp_thread ,(s,data,address,))
  
     s.close()
+    os._exit(0)
+    
+#Function to initiate server with the the protocol passed by the parent
+def central_server_init(protocol):
+    if protocol == 0 :
+        tcp_server_init()
+    else:
+        udp_server_init()
+
+#Function to create processes
+def parent():
+    for i in range(2):
+        try:
+            pid = os.fork()
+        except OSError:
+            sys.stderr.write("Could not create a child process\n")
+            continue
+                    
+        if pid == 0 :
+            central_server_init(i)
+                        
+    for i in range(2):
+        os.waitpid(0, 0)
 
 #Check if Central Server directory exists, if not it creates one
 if not path.exists('CentralServer'):
@@ -126,10 +191,10 @@ if size_commands > 1 and size_commands < 4:
             except ValueError:
                 print("Invalid Port!")
             else:
-                central_server_init()
+                parent()
         else:
             print("Invalid Command!")
     else:
         print("Invalid number of commands!")
 else:
-    central_server_init()
+    parent()
