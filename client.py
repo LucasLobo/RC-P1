@@ -4,8 +4,8 @@ import sys
 import subprocess
 import os
 
-TCP_IP = 'tejo.tecnico.ulisboa.pt'
-TCP_PORT = 58011
+TCP_IP = socket.gethostbyname(socket.gethostname())
+TCP_PORT = 58054
 BUFFER_SIZE = 1024
 
 CENTRAL_SERVER = "CS"

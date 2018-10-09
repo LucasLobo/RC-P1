@@ -2,9 +2,11 @@
 import sys
 import socket
 import os.path
+import datetime
 
 from _thread import *
 from os import path
+from datetime import datetime
 
 # Global Variables
 USER_FILE = "./CentralServer/user_"
@@ -15,6 +17,7 @@ BUFFER_SIZE = 1024
 #Function for handling connections. This will be used to create threads
 def clientthread(conn):
     global USER_FILE
+    user = ""
     reply = ""
     #infinite loop so that function do not terminate and thread do not end.
     while True:
@@ -28,28 +31,48 @@ def clientthread(conn):
             message = data.decode()
             msg_split = message.split()
             
-            if msg_split[0] == "AUT" and len(msg_split) == 3:
-                user = msg_split[1]
-                password = msg_split[2]
+            try:
+                if msg_split[0] == "AUT" and len(msg_split) == 3:
+                    user = msg_split[1]
+                    password = msg_split[2]
                 
-                user_file = USER_FILE + user + ".txt"
-                os.makedirs(USER_FILE + user)
+                    user_file = USER_FILE + user + ".txt"
                 
-                if not path.exists(user_file):
-                    f = open(user_file,"w+")
-                    f.write(password)
-                    reply = "AUR NEW\n"
-                    print("New user: " + user)
-                else:
-                    f = open(user_file,"r")
-                    stored_pass = f.read()
-                    if stored_pass == password:
-                        reply = "AUR OK\n"
+                    if not path.exists(user_file):
+                        os.makedirs(USER_FILE + user)
+                        f = open(user_file,"w+")
+                        f.write(password)
+                        reply = "AUR NEW\n"
+                        print("New user: " + user)
                     else:
-                        reply = "AUR NOK\n"
-            else:
-                reply = "ERR\n"
-        
+                        f = open(user_file,"r")
+                        stored_pass = f.read()
+                        if stored_pass == password:
+                            reply = "AUR OK\n"
+                        else:
+                            reply = "AUR NOK\n"
+                elif msg_split[0] == "LSD" and len(msg_split) == 1:
+                    len_dirs = len(os.listdir(USER_FILE + user))
+                    if len_dirs != 0:
+                        list_dirs = os.listdir(USER_FILE + user)
+                        reply = "LDR " + str(len_dirs)
+                        for i in range(len_dirs):
+                            reply += " " + list_dirs[i]
+                        reply += "\n"
+                    else:
+                        reply = "LDR 0\n"
+                elif msg_split[0] == "DLU" and len(msg_split) == 1:
+                    len_dirs = len(os.listdir(USER_FILE + user))
+                    if len_dirs != 0:
+                        reply = "DLR NOK\n"
+                    else:
+                        os.rmdir(USER_FILE + user)
+                        os.remove(USER_FILE + user + ".txt")
+                        reply = "DLR OK"
+                else:
+                    reply = "ERR\n"
+            except IndexError:
+                break
         conn.sendall(reply.encode())
      
     #came out of loop
@@ -58,6 +81,7 @@ def clientthread(conn):
 def central_server_init():
     #Variables
     global CS_IP
+    global CS_PORT
     
     #Create Socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,7 +96,6 @@ def central_server_init():
         print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
         sys.exit()
      
-    
     #Start listening on Socket
     s.listen(10)
     print('<<<Waiting for Connections>>>')
