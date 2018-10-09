@@ -12,19 +12,50 @@ USER_FILE = "./CentralServer/user_"
 CS_IP = ""
 CS_PORT = 58054
 BUFFER_SIZE = 1024
+pipe_tcp_in = 'tcp_in'
+pipe_tcp_out = 'tcp_out'
+BS_registry = {}
 
-#Function for handling connections. This will be used to create threads
+#Function for handling UDP connections. This will be used to create threads
 def client_udp_thread(socket,data,addr):
+    reply = ""
     
-    reply = 'OK...' + data
-    s.sendto(reply , addr)
+    #Pipes for inter-process communication
+    pipein = open(pipe_tcp_out, 'r')
+    pipeout = os.open(pipe_tcp_int, os.O_WRONLY)
+    
+    message = data.decode()
+    msg_split = message.split()
+    
+    if msg_split[0] == "REG" and len(msg_split) == 3:
+        try :
+            BS_port = int(msg_split[2])
+        except ValueError:
+            reply = "RGR ERR\n"
+        else:
+            if ms_split[1] in BS_registry:
+                reply = "RGR NOK\n"
+            else:
+                BS_registry[msg_split[1]] = BS_port
+                print("+BS: " + msg_split[1] + " " + msg_split[2])
+                reply = "RGR OK\n"
+    else:
+        reply = "ERR\n"
+    
+    s.sendto(reply.encode() , addr)
      
 
-#Function for handling connections. This will be used to create threads
+#Function for handling TCP connections. This will be used to create threads
 def client_tcp_thread(conn):
     global USER_FILE
     user = ""
+    password = ""
     reply = ""
+    
+    #Pipes for inter-process communication
+    pipein = open(pipe_tcp_in, 'r')
+    pipeout = os.open(pipe_tcp_out, os.O_WRONLY)
+    
     #infinite loop so that function do not terminate and thread do not end.
     while True:
          
@@ -55,6 +86,7 @@ def client_tcp_thread(conn):
                         stored_pass = f.read()
                         if stored_pass == password:
                             reply = "AUR OK\n"
+                            print("User: " + user)
                         else:
                             reply = "AUR NOK\n"
                 elif msg_split[0] == "LSD" and len(msg_split) == 1:
@@ -77,6 +109,13 @@ def client_tcp_thread(conn):
                         reply = "DLR OK"
                 else:
                     reply = "ERR\n"
+                """elif msg_split[0] == "BCK":
+                    number_files = int(msg_split[2])
+                    if (len(msg_split) - 3) == (number_files * 4):
+                        udp_message = "LSU " + user + " " + password
+                        os.write(pipeout, udp_message)
+                        received_udp = pipein.readline()[:-1]
+                """
             except IndexError:
                 break
         conn.sendall(reply.encode())
@@ -175,6 +214,13 @@ def parent():
                         
     for i in range(2):
         os.waitpid(0, 0)
+        
+#Create Fifo's
+if not os.path.exists(pipe_tcp_in):
+    os.mkfifo(pipe_tcp_in)
+    
+if not os.path.exists(pipe_tcp_out):
+    os.mkfifo(pipe_tcp_out)
 
 #Check if Central Server directory exists, if not it creates one
 if not path.exists('CentralServer'):
