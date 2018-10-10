@@ -3,6 +3,7 @@ import sys
 import os
 import socket
 import os.path
+import random
 
 from _thread import *
 from os import path
@@ -24,9 +25,6 @@ def client_udp_thread(sock,data,addr):
     if msg_split[0] == "REG" and len(msg_split) == 3:
         try :
             BS_port = int(msg_split[2])
-        except ValueError:
-            reply = "RGR ERR\n"
-        else:
             if not path.exists(BS_FILE):
                 f = open(BS_FILE,"w+")
                 f.write(ms_split[1] + "," + msg_split[2] + ";")
@@ -47,6 +45,36 @@ def client_udp_thread(sock,data,addr):
                     f.close()
                     print("+BS: " + msg_split[1] + " " + msg_split[2])
                     reply = "RGR OK\n"
+        except ValueError:
+            reply = "RGR ERR\n"
+    elif msg_split[0] == "UNR" and len(msg_split) == 3:
+        try:
+            BS_port = int(msg_split[2])
+            BS_ip = msg_split[1]
+            
+            f = open(BS_FILE,"r")
+            stored_bs = f.read()
+            f.close()
+            
+            bs_word = BS_ip + "," + str(BS_port)
+            stored_bs_split = stored_bs.split(";")
+            
+            if bs_word in stored_bs_split:
+                stored_bs_split.remove(bs_word)
+                new_bs_info = ""
+                
+                for i in range(len(stored_bs_split)):
+                    new_bs_info += stored_bs_split[i] + ";"
+                
+                f = open(BS_FILE,"w+")
+                f.write(new_bs_info)
+                f.close
+                
+                reply = "UAR OK\n"
+            else:
+                reply = "UAR NOK\n"
+        except ValueError:
+            reply = "UAR ERR\n"
     else:
         reply = "ERR\n"
     
@@ -129,14 +157,14 @@ def client_tcp_thread(conn):
                             
                             #Get One BS
                             bs_list = stored_bs.split(";")
-                            first_bs = bs_list[0]
-                            bs_split = first_bs.split(",")
+                            chosen_bs = bs_list[random.randint(0,len(bs_list)-2)]
+                            bs_split = chose_bs.split(",")
                             bs_ip = bs_split[0]
                             bs_port = int(bs_split[1])
                         
                             #Create BS file in dir
                             f = open(bs_file_dir,"w+")
-                            f.write(first_bs)
+                            f.write(chosen_bs)
                             f.close()
                         
                             udp_message = "LSU " + user + " " + password + "\n"
