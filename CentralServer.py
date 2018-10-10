@@ -70,6 +70,7 @@ def client_udp_thread(sock,data,addr):
                 f.write(new_bs_info)
                 f.close
                 
+                print("-BS: " + msg_split[1] + " " + msg_split[2])
                 reply = "UAR OK\n"
             else:
                 reply = "UAR NOK\n"
@@ -120,10 +121,10 @@ def client_tcp_thread(conn):
                         f.close()
                         if stored_pass == password:
                             reply = "AUR OK\n"
-                            print("User: " + user)
                         else:
                             reply = "AUR NOK\n"
                 elif msg_split[0] == "LSD" and len(msg_split) == 1:
+                    print("User: " + user + "\tCommand: List Directories")
                     len_dirs = len(os.listdir(USER_FILE + user))
                     if len_dirs != 0:
                         list_dirs = os.listdir(USER_FILE + user)
@@ -134,14 +135,17 @@ def client_tcp_thread(conn):
                     else:
                         reply = "LDR 0\n"
                 elif msg_split[0] == "DLU" and len(msg_split) == 1:
+                    print("User: " + user + "\tCommand: Delete User")
                     len_dirs = len(os.listdir(USER_FILE + user))
                     if len_dirs != 0:
                         reply = "DLR NOK\n"
                     else:
                         os.rmdir(USER_FILE + user)
                         os.remove(USER_FILE + user + ".txt")
+                        print("User " + user + " deleted")
                         reply = "DLR OK"
                 elif msg_split[0] == "BCK":
+                    print("User: " + user + "\tCommand: Backup Directory")
                     number_files = int(msg_split[2])
                     if (len(msg_split) - 3) == (number_files * 4):
                         directory_name = msg_split[1]
@@ -193,7 +197,7 @@ def client_tcp_thread(conn):
                             f.close()
                             
                             #Get BS
-                            bs_split = first_bs.split(",")
+                            bs_split = stored_bs.split(",")
                             bs_ip = bs_split[0]
                             bs_port = int(bs_split[1])
                             
@@ -218,6 +222,67 @@ def client_tcp_thread(conn):
                                 reply = "BKR EOF\n"
                     else:
                         reply = "BKR ERR\n"
+                elif msg_split[0] == "LSF" and len(msg_split) == 2:
+                    print("User: " + user + "\tCommand: List Directory Files")
+                    directory_name = msg_split[1]
+                    directory_path = USER_FILE + user + "/" + directory_name
+                    bs_file_dir = directory_path + "/" + "BS.txt"
+                    
+                    if not path.exists(directory_path):
+                        reply = "LFD NOK\n"
+                    else:
+                        #Open BS file in dir
+                        f = open(bs_file_dir,"r")
+                        stored_bs = f.read()
+                        f.close()
+                            
+                        #Get BS
+                        bs_split = stored_bs.split(",")
+                        bs_ip = bs_split[0]
+                        bs_port = int(bs_split[1])
+                        
+                        udp_message = "LSF " + user + " " + directory_name + "\n"
+                            
+                        # Send and receive BS message
+                        sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                        sock.sendto(udp_message.encode(), (bs_ip, bs_port))
+                            
+                        data, server = sock.recvfrom(BUFFER_SIZE)
+                        bs_message = data.decode()
+                            
+                        #Check BS response
+                        bs_message_split = bs_message.split()
+                        if bs_message_split[0] == "LFD":
+                            reply = "LFD " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
+                            i = 2
+                            for i in range(len(bs_message_split)):
+                                reply += " " + msg_split[i]
+                            reply += "\n"
+                        else:
+                            reply = "LFD NOK\n"
+                elif msg_split[0] == "RST":
+                    print("User: " + user + "\tCommand: Restore Directory")
+                    if len(msg_split) == 2:
+                        directory_name = msg_split[1]
+                        directory_path = USER_FILE + user + "/" + directory_name
+                        bs_file_dir = directory_path + "/" + "BS.txt"
+                        
+                        if not path.exists(directory_path):
+                            reply = "RSR EOF\n"
+                        else:
+                            #Open BS file in dir
+                            f = open(bs_file_dir,"r")
+                            stored_bs = f.read()
+                            f.close()
+                            
+                            #Get BS
+                            bs_split = stored_bs.split(",")
+                            bs_ip = bs_split[0]
+                            bs_port = int(bs_split[1])
+                                
+                            reply = "RSR " + bs_ip + " " + bs_port + "\n"
+                    else:
+                        reply = "RSR ERR\n"
                 else:
                     reply = "ERR\n"
             except IndexError:
