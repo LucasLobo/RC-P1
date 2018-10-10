@@ -4,6 +4,7 @@ import os
 import socket
 import os.path
 import random
+import shutil
 
 from _thread import *
 from os import path
@@ -283,6 +284,41 @@ def client_tcp_thread(conn):
                             reply = "RSR " + bs_ip + " " + bs_port + "\n"
                     else:
                         reply = "RSR ERR\n"
+                elif msg_split[0] == "DEL" and len(msg_split) == 2:
+                    print("User: " + user + "\tCommand: Delete Directory")
+                    directory_name = msg_split[1]
+                    directory_path = USER_FILE + user + "/" + directory_name
+                    bs_file_dir = directory_path + "/" + "BS.txt"
+                    
+                    if not path.exists(directory_path):
+                        reply = "DDR NOK\n"
+                    else:
+                        #Open BS file in dir
+                        f = open(bs_file_dir,"r")
+                        stored_bs = f.read()
+                        f.close()
+                            
+                        #Get BS
+                        bs_split = stored_bs.split(",")
+                        bs_ip = bs_split[0]
+                        bs_port = int(bs_split[1])
+                        
+                        udp_message = "DLB " + user + " " + directory_name + "\n"
+                            
+                        # Send and receive BS message
+                        sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                        sock.sendto(udp_message.encode(), (bs_ip, bs_port))
+                            
+                        data, server = sock.recvfrom(BUFFER_SIZE)
+                        bs_message = data.decode()
+                        
+                        #Check BS response
+                        bs_message_split = bs_message.split()
+                        if bs_message_split[0] == "DBR" and bs_message_split[1] == "OK":
+                            shutil.rmtree(directory_path)
+                            reply = "DDR OK\n"
+                        else:
+                            reply = "DDR NOK\n"
                 else:
                     reply = "ERR\n"
             except IndexError:
