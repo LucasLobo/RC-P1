@@ -203,7 +203,7 @@ def process_client_request(client_request, server_type, ip = None, port = None):
         buffer = s.recv(BUFFER_SIZE)
 
     if not server_response:
-        print("".join(client_request) + " - no return")
+        print("No return: " + " ".join(client_request))
     else:
         user_response = ""
         if server_type is CENTRAL_SERVER:
