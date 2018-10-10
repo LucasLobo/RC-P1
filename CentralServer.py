@@ -12,17 +12,11 @@ USER_FILE = "./CentralServer/user_"
 CS_IP = ""
 CS_PORT = 58054
 BUFFER_SIZE = 1024
-pipe_tcp_in = 'tcp_in'
-pipe_tcp_out = 'tcp_out'
-BS_registry = {}
+BS_FILE = "./CentralServer/BS_LIST.txt"
 
 #Function for handling UDP connections. This will be used to create threads
-def client_udp_thread(socket,data,addr):
+def client_udp_thread(sock,data,addr):
     reply = ""
-    
-    #Pipes for inter-process communication
-    pipein = open(pipe_tcp_out, 'r')
-    pipeout = os.open(pipe_tcp_int, os.O_WRONLY)
     
     message = data.decode()
     msg_split = message.split()
@@ -33,16 +27,30 @@ def client_udp_thread(socket,data,addr):
         except ValueError:
             reply = "RGR ERR\n"
         else:
-            if ms_split[1] in BS_registry:
-                reply = "RGR NOK\n"
-            else:
-                BS_registry[msg_split[1]] = BS_port
+            if not path.exists(BS_FILE):
+                f = open(BS_FILE,"w+")
+                f.write(ms_split[1] + "," + msg_split[2] + ";")
+                f.close()
                 print("+BS: " + msg_split[1] + " " + msg_split[2])
                 reply = "RGR OK\n"
+            else:
+                f = open(BS_FILE,"r")
+                stored_bs = f.read()
+                f.close()
+                bs_list = stored_bs.split(";")
+                bs_word = ms_split[1] + "," + msg_split[2]
+                if bs_word in bs_list:
+                    reply = "RGR NOK\n"
+                else:
+                    f = open(BS_FILE,"a")
+                    f.write(ms_split[1] + "," + msg_split[2] + ";")
+                    f.close()
+                    print("+BS: " + msg_split[1] + " " + msg_split[2])
+                    reply = "RGR OK\n"
     else:
         reply = "ERR\n"
     
-    s.sendto(reply.encode() , addr)
+    sock.sendto(reply.encode() , addr)
      
 
 #Function for handling TCP connections. This will be used to create threads
@@ -51,10 +59,6 @@ def client_tcp_thread(conn):
     user = ""
     password = ""
     reply = ""
-    
-    #Pipes for inter-process communication
-    pipein = open(pipe_tcp_in, 'r')
-    pipeout = os.open(pipe_tcp_out, os.O_WRONLY)
     
     #infinite loop so that function do not terminate and thread do not end.
     while True:
@@ -79,11 +83,13 @@ def client_tcp_thread(conn):
                         os.makedirs(USER_FILE + user)
                         f = open(user_file,"w+")
                         f.write(password)
+                        f.close()
                         reply = "AUR NEW\n"
                         print("New user: " + user)
                     else:
                         f = open(user_file,"r")
                         stored_pass = f.read()
+                        f.close()
                         if stored_pass == password:
                             reply = "AUR OK\n"
                             print("User: " + user)
@@ -107,15 +113,85 @@ def client_tcp_thread(conn):
                         os.rmdir(USER_FILE + user)
                         os.remove(USER_FILE + user + ".txt")
                         reply = "DLR OK"
-                else:
-                    reply = "ERR\n"
-                """elif msg_split[0] == "BCK":
+                elif msg_split[0] == "BCK":
                     number_files = int(msg_split[2])
                     if (len(msg_split) - 3) == (number_files * 4):
-                        udp_message = "LSU " + user + " " + password
-                        os.write(pipeout, udp_message)
-                        received_udp = pipein.readline()[:-1]
-                """
+                        directory_name = msg_split[1]
+                        directory_path = USER_FILE + user + "/" + directory_name
+                        bs_file_dir = directory_path + "/" + "BS.txt"
+                        if not path.exists(directory_path):
+                            os.makedirs(directory_path)
+                        
+                            #Open BS Database file
+                            f = open(BS_FILE,"r")
+                            stored_bs = f.read()
+                            f.close()
+                            
+                            #Get One BS
+                            bs_list = stored_bs.split(";")
+                            first_bs = bs_list[0]
+                            bs_split = first_bs.split(",")
+                            bs_ip = bs_split[0]
+                            bs_port = int(bs_split[1])
+                        
+                            #Create BS file in dir
+                            f = open(bs_file_dir,"w+")
+                            f.write(first_bs)
+                            f.close()
+                        
+                            udp_message = "LSU " + user + " " + password + "\n"
+                            
+                            # Send and receive BS message
+                            sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                            sock.sendto(udp_message.encode(), (bs_ip, bs_port))
+                            
+                            data, server = sock.recvfrom(BUFFER_SIZE)
+                            bs_message = data.decode()
+                            
+                            #Check BS response
+                            bs_message_split = bs_message.split()
+                            if bs_message_split[0] == "LUR" and bs_message_split[1] == "OK":
+                                reply = "BKR " + bs_ip + " " + str(bs_port) + " " + str(number_files)
+                                i = 3
+                                for i in range(len(msg_split)):
+                                    reply += " " + msg_split[i]
+                                reply += "\n"
+                            else:
+                                reply = "BKR EOF\n"
+                        else:
+                            #Open BS file in dir
+                            f = open(bs_file_dir,"r")
+                            stored_bs = f.read()
+                            f.close()
+                            
+                            #Get BS
+                            bs_split = first_bs.split(",")
+                            bs_ip = bs_split[0]
+                            bs_port = int(bs_split[1])
+                            
+                            udp_message = "LSF " + user + " " + directory_name + "\n"
+                            
+                            # Send and receive BS message
+                            sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
+                            sock.sendto(udp_message.encode(), (bs_ip, bs_port))
+                            
+                            data, server = sock.recvfrom(BUFFER_SIZE)
+                            bs_message = data.decode()
+                            
+                            #Check BS response
+                            bs_message_split = bs_message.split()
+                            if bs_message_split[0] == "LFD":
+                                reply = "BKR " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
+                                i = 2
+                                for i in range(len(bs_message_split)):
+                                    reply += " " + msg_split[i]
+                                reply += "\n"
+                            else:
+                                reply = "BKR EOF\n"
+                    else:
+                        reply = "BKR ERR\n"
+                else:
+                    reply = "ERR\n"
             except IndexError:
                 break
         conn.sendall(reply.encode())
@@ -214,13 +290,6 @@ def parent():
                         
     for i in range(2):
         os.waitpid(0, 0)
-        
-#Create Fifo's
-if not os.path.exists(pipe_tcp_in):
-    os.mkfifo(pipe_tcp_in)
-    
-if not os.path.exists(pipe_tcp_out):
-    os.mkfifo(pipe_tcp_out)
 
 #Check if Central Server directory exists, if not it creates one
 if not path.exists('CentralServer'):
