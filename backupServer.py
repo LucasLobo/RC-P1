@@ -9,85 +9,93 @@ from os import path
 
 
 USER_FILE = "./BackupServer/user_"
-CS_IP = socket.gethostbyname(socket.gethostname())
-BS_PORT = 59000
-CS_PORT = 58054
 BUFFER_SIZE = 1024
+
+CS_IP = socket.gethostbyname(socket.gethostname())
+CS_PORT = 58054
+
 BS_IP = ""
+BS_PORT = 59000
 
 
 
-def client_tcp_thread(server_response):
+def client_udp(s):
+    global CS_IP
+    global CS_PORT
+
     global USER_FILE
-    server_response = server_response.decode()
-    split_server_response = server_response.split()
-    response_code = split_server_response[0]
+    reply = ""
 
-    #if (response_code == "REG"):
+    while 1:
 
-    if (response_code == "RGR"):
-        status = split_server_response[1]
-        if status == "OK":
-            server_response = "CS confirms" #fillers
+        data, (address,port) = s.recvfrom(BUFFER_SIZE)
+        print('Connected with ' + address)
+        response = data.decode()
 
-        elif status == "NOK":
-            server_response = "CS declines"
-        else:
-            server_response = "RGR ERR"
 
-    #elif (response_code == "UNR"):
+        split_server_response = response.split()
+        response_code = split_server_response[0]
 
-    elif (response_code == "UAR"):
-        status = split_server_response[1]
-        if status == "OK":
-            server_response = "CS confirms" #fillers
 
-        elif status == "NOK":
-            server_response = "CS declines"
-        else:
-            server_response = "UAR ERR"
 
-    elif (response_code == "LSF"):
-        "filler"
+        if (response_code == "RGR"):
+            status = split_server_response[1]
+            if status == "OK":
+                continue #fillers
 
-    #elif (response_code == "LFD"):
-
-    elif (response_code == "LSU"):
-        user = split_server_response[1]
-        password = split_server_response[2]
-
-        user_file = USER_FILE + user + ".txt"
-        os.makedirs(USER_FILE + user)
-
-        if not path.exists(user_file):
-            f = open(user_file,"w+")
-            f.write(password)
-        else:
-            f = open(user_file,"r")
-            stored_pass = f.read()
-            if stored_pass == password:
-                reply = "LUR OK\n"
+            elif status == "NOK":
+                continue
             else:
-                reply = "LUR NOK\n"
+                reply = "RGR ERR"
+
+        #elif (response_code == "UNR"):
+
+        elif (response_code == "UAR"):
+            status = split_server_response[1]
+            if status == "OK":
+                reply = "CS confirms" #fillers
+
+            elif status == "NOK":
+                reply = "CS declines"
+            else:
+                reply = "UAR ERR"
+
+        elif (response_code == "LSF"):
+            "filler"
+
+        #elif (response_code == "LFD"):
+
+    elif (response_code == "LUR"):
+            user = split_server_response[1]
+            password = split_server_response[2]
+
+            user_file = USER_FILE + user + ".txt"
+            os.makedirs(USER_FILE + user)
+
+            if not path.exists(user_file):
+                f = open(user_file,"w+")
+                f.write(password)
+            else:
+                f = open(user_file,"r")
+                stored_pass = f.read()
+                if stored_pass == password:
+                    reply = "LUR OK\n"
+                else:
+                    reply = "LUR NOK\n"
+
+        elif (response_code == "DBR"):
+            "filler"
+
+        elif (response_code == "ERR"):
+            reply = "ERR"
+
+        else:
+            reply = "Unknown"
+
+        s.sendto(reply.encode() , (CS_IP,CS_PORT))
 
 
-    #elif (response_code == "LUR"):
-
-    #elif (response_code == "DLB"):
-
-    elif (response_code == "DBR"):
-        "filler"
-
-    elif (response_code == "ERR"):
-        server_response = "ERR"
-
-    else:
-        server_response = "Unknown"
-
-    return server_response
-
-
-def client_udp_thread(conn, data, addr):
+def client_tcp_thread(conn):
     global USER_FILE
     user = ""
     password = ""
@@ -122,21 +130,37 @@ def client_udp_thread(conn, data, addr):
                             reply = "AUR NOK\n"
 
                 elif (response_code == "UPL"):
-                    directory = split_client_response[1]
-                    mumber_of_files = split_client_response[2]
+                    # QUESTION : Perguntar ao Lucas como fazer
+                    if len(split_client_response) == 2:
+                        status = split_client_response[1].decode()
+                        if status == "EOF":
+                            user_response = "Directory not found"
+                        elif status == "ERR":
+                            user_response = "Request not correctly formulated"
+                        else:
+                            user_response = "Unexpected"
+                    elif (len(split_server_response) >= 2) and (split_server_response[1].decode().isdigit()):
+                        content = client_response.split(b" ", 3)
+                        directory = split_client_response[1]
+                        mumber_of_files = split_client_response[2]
+                        files = content[3:][0]
 
-                    if not os.path.exists(directory):
-                        os.makedirs(directory)
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
 
-                    for file_number in range(0,number_of_files):
-                        filename = split_client_response[3 + filenumber * 4 -4]
-                        date_time = split_client_response[4 + filenumber * 4 -4]
-                        size = split_client_response[5 + filenumber * 4 -4]
-                        data = split_client_response[6 + filenumber * 4 -4]
+                        for file in range(number_of_files):
+                            files = files.split(b" ", 4)
+                            current_file_info = files[0:4]
+                            current_file_size = int(current_file_info[3].decode())
+                            remainder = files[4:][0]
+                            data = remainder[0:current_file_size]
+                            files = remainder[current_file_size+1:]
+                            file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
+                            file.write(data)
 
-                        file_data = open("./" + directory + "/" + filename, 'rb')
-                        file_data.write(data)
-                        os.utime("./" + directory + "/" + filename, 'rb', (date_time, date_time))
+                        user_response = "Successfully restored"
+                    else:
+                        user_response = "Unexpected"
 
 
                 elif (response_code == "RSB"):
@@ -146,9 +170,9 @@ def client_udp_thread(conn, data, addr):
                     reply = "ERR\n"
             except IndexError:
                 break
-        sock.sendto(reply.encode() , addr)
+        conn.sendall(reply.encode())
 
-    #conn.close()
+    conn.close()
 
 
 def udp_client_init():
@@ -157,28 +181,35 @@ def udp_client_init():
     global CS_PORT
 
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    # QUESTION: necessario?
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
+    BS_IP = socket.gethostbyname(socket.gethostname())
+    Message = "REG "+ BS_IP + " " + str(BS_PORT)
+
     try:
-        s.bind((CS_IP, CS_PORT))
+        s.sendto(Message.encode(), (CS_IP, CS_PORT))
+
+        client_udp(s)
     except socket.error as msg:
         print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
         sys.exit()
 
-    print('<<<Waiting for UDP Connections>>>')
 
-    #now keep talking with the client
-    while 1:
-        #wait to accept a connection - blocking call
-        data, address = s.recvfrom(BUFFER_SIZE)
-        print('Connected with ' + address)
-
-        #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
-        start_new_thread(client_udp_thread ,(s,data,address,))
 
     s.close()
     os._exit(0)
 
+    #now keep talking with the client
+    # while 1:
+    #     #wait to accept a connection - blocking call
+    #     data, (address,port) = s.recvfrom(BUFFER_SIZE)
+    #     print('Connected with ' + address)
+    #     data.decode()
+    #
+    #     #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
+    #     start_new_thread(client_udp_thread ,(s,data,address,port))
 
 
 
@@ -213,33 +244,10 @@ def tcp_server_init():
 
         #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
         start_new_thread(client_tcp_thread ,(conn,))
-
     s.close
     os._exit(0)
 
 
-'''def udp_server_init():
-    #Variables
-    global BS_IP
-
-    #Create Socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    #Get Host Name
-    BS_IP = socket.gethostbyname(socket.gethostname())
-
-    try:
-        s.bind((BS_IP, BS_PORT))
-    except socket.error as msg:
-        print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-        sys.exit()
-
-    #Start listening on Socket
-    s.listen(10)
-    print('<<<Waiting for Connections>>>')
-    connect_upd_server(CS_IP, CS_PORT)
-
-    s.close() '''
 
 
 def backup_server_init(protocol):
@@ -262,6 +270,9 @@ def parent():
 
     for i in range(2):
         os.waitpid(0, 0)
+
+if not path.exists('BackupServer'):
+    os.makedirs('BackupServer')
 
 size_commands = len(sys.argv)
 
