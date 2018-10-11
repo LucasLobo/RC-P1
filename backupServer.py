@@ -161,7 +161,7 @@ def client_tcp_thread(conn):
                 elif (response_code == "UPL"):
                     content = data.split(b" ", 3)
                     directory = content[1].decode()
-                    mumber_of_files = int(content[2].decode())
+                    number_of_files = int(content[2].decode())
                     files = content[3:][0]
 
 
