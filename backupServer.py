@@ -3,6 +3,7 @@ import sys
 import socket
 import os.path
 import os
+import shutil
 
 from _thread import *
 from os import path
@@ -104,7 +105,15 @@ def client_udp(s):
 
 
         elif (response_code == "DBR"):
-            "filler"
+            user = split_server_response[1]
+            directory = split_server_response[2]
+            rem_dir= USER_FILE + user + "/" + directory
+
+            if os.path.exists(rem_dir):
+                shutil.rmtree(rem_dir)
+                reply = "DBR OK"
+            else:
+                reply = "DBR NOK"
 
         elif (response_code == "ERR"):
             reply = "ERR"
@@ -151,8 +160,8 @@ def client_tcp_thread(conn):
 
                 elif (response_code == "UPL"):
                     content = data.split(b" ", 3)
-                    directory = content[1]
-                    mumber_of_files = content[2]
+                    directory = content[1].decode()
+                    mumber_of_files = int(content[2].decode())
                     files = content[3:][0]
 
 
@@ -311,7 +320,8 @@ if not path.exists('BackupServer'):
 
 size_commands = len(sys.argv)
 
-if size_commands > 1 and size_commands < 4:
+
+f size_commands > 1 and size_commands < 4:
     if size_commands == 3:
         if sys.argv[1] == "-b":
             try :
