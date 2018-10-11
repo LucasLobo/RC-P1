@@ -28,7 +28,7 @@ def client_udp_thread(sock,data,addr):
             BS_port = int(msg_split[2])
             if not path.exists(BS_FILE):
                 f = open(BS_FILE,"w+")
-                f.write(ms_split[1] + "," + msg_split[2] + ";")
+                f.write(msg_split[1] + "," + msg_split[2] + ";")
                 f.close()
                 print("+BS: " + msg_split[1] + " " + msg_split[2])
                 reply = "RGR OK\n"
@@ -37,12 +37,12 @@ def client_udp_thread(sock,data,addr):
                 stored_bs = f.read()
                 f.close()
                 bs_list = stored_bs.split(";")
-                bs_word = ms_split[1] + "," + msg_split[2]
+                bs_word = msg_split[1] + "," + msg_split[2]
                 if bs_word in bs_list:
                     reply = "RGR NOK\n"
                 else:
                     f = open(BS_FILE,"a")
-                    f.write(ms_split[1] + "," + msg_split[2] + ";")
+                    f.write(msg_split[1] + "," + msg_split[2] + ";")
                     f.close()
                     print("+BS: " + msg_split[1] + " " + msg_split[2])
                     reply = "RGR OK\n"
@@ -395,7 +395,6 @@ def udp_server_init():
     while 1:
         #wait to accept a connection - blocking call
         data, address = s.recvfrom(BUFFER_SIZE)
-        print('Connected with ' + address)
      
         #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
         start_new_thread(client_udp_thread ,(s,data,address,))
