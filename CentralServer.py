@@ -145,7 +145,7 @@ def client_tcp_thread(conn):
                         os.rmdir(USER_FILE + user)
                         os.remove(USER_FILE + user + ".txt")
                         print("User " + user + " deleted")
-                        reply = "DLR OK"
+                        reply = "DLR OK\n"
                 elif msg_split[0] == "BCK":
                     print("User: " + user + "\tCommand: Backup Directory")
                     
