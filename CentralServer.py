@@ -231,9 +231,14 @@ def client_tcp_thread(conn):
                                 reply = "BKR EOF\n"
                     else:
                         reply = "BKR ERR\n"
-                elif msg_split[0] == "LSF" and len(msg_split) == 2:
+                elif msg_split[0] == "LSF":
                     print("User: " + user + "\tCommand: List Directory Files")
-                    directory_name = msg_split[1]
+                    
+                    data2 = conn.recv(BUFFER_SIZE)
+                    message2 = data2.decode()
+                    msg_split2 = message2.split()
+                    
+                    directory_name = msg_split2[0]
                     directory_path = USER_FILE + user + "/" + directory_name
                     bs_file_dir = directory_path + "/" + "BS.txt"
                     
@@ -263,8 +268,13 @@ def client_tcp_thread(conn):
                             reply = "LFD NOK\n"
                 elif msg_split[0] == "RST":
                     print("User: " + user + "\tCommand: Restore Directory")
-                    if len(msg_split) == 2:
-                        directory_name = msg_split[1]
+                    
+                    data2 = conn.recv(BUFFER_SIZE)
+                    message2 = data2.decode()
+                    msg_split2 = message2.split()
+                    
+                    if len(msg_split2) == 1:
+                        directory_name = msg_split2[0]
                         directory_path = USER_FILE + user + "/" + directory_name
                         bs_file_dir = directory_path + "/" + "BS.txt"
                         
@@ -284,9 +294,14 @@ def client_tcp_thread(conn):
                             reply = "RSR " + bs_ip + " " + bs_port + "\n"
                     else:
                         reply = "RSR ERR\n"
-                elif msg_split[0] == "DEL" and len(msg_split) == 2:
+                elif msg_split[0] == "DEL":
                     print("User: " + user + "\tCommand: Delete Directory")
-                    directory_name = msg_split[1]
+                    
+                    data2 = conn.recv(BUFFER_SIZE)
+                    message2 = data2.decode()
+                    msg_split2 = message2.split()
+                    
+                    directory_name = msg_split2[0]
                     directory_path = USER_FILE + user + "/" + directory_name
                     bs_file_dir = directory_path + "/" + "BS.txt"
                     
