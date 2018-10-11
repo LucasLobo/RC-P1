@@ -64,8 +64,9 @@ def client_udp_thread(sock,data,addr):
                 stored_bs_split.remove(bs_word)
                 new_bs_info = ""
                 
-                for i in range(len(stored_bs_split)):
-                    new_bs_info += stored_bs_split[i] + ";"
+                if len(stored_bs_split) > 0:
+                    for i in range(len(stored_bs_split)):
+                        new_bs_info += stored_bs_split[i] + ";"
                 
                 f = open(BS_FILE,"w+")
                 f.write(new_bs_info)
@@ -179,8 +180,9 @@ def client_tcp_thread(conn):
                             sock.sendto(udp_message.encode(), (bs_ip, bs_port))
                             
                             data, server = sock.recvfrom(BUFFER_SIZE)
-                            bs_message = data.decode()
+                            bs_message = data.decode
                             
+                            sock.close()
                             #Check BS response
                             bs_message_split = bs_message.split()
                             if bs_message_split[0] == "LUR" and bs_message_split[1] == "OK":
@@ -211,6 +213,7 @@ def client_tcp_thread(conn):
                             data, server = sock.recvfrom(BUFFER_SIZE)
                             bs_message = data.decode()
                             
+                            sock.close()
                             #Check BS response
                             bs_message_split = bs_message.split()
                             if bs_message_split[0] == "LFD":
@@ -250,7 +253,8 @@ def client_tcp_thread(conn):
                             
                         data, server = sock.recvfrom(BUFFER_SIZE)
                         bs_message = data.decode()
-                            
+                        
+                        sock.close()
                         #Check BS response
                         bs_message_split = bs_message.split()
                         if bs_message_split[0] == "LFD":
@@ -312,6 +316,7 @@ def client_tcp_thread(conn):
                         data, server = sock.recvfrom(BUFFER_SIZE)
                         bs_message = data.decode()
                         
+                        sock.close()
                         #Check BS response
                         bs_message_split = bs_message.split()
                         if bs_message_split[0] == "DBR" and bs_message_split[1] == "OK":
