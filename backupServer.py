@@ -83,8 +83,6 @@ def client_udp(s):
                 reply.extend([filename, date, time, size])
 
 
-        #elif (response_code == "LFD"):
-
         elif (response_code == "LSU"):
             if (len(split_server_response) >= 3) and is_valid_login(split_server_response[1:]):
                 user = split_server_response[1]
@@ -152,34 +150,31 @@ def client_tcp_thread(conn):
                             reply = "AUR NOK\n"
 
                 elif (response_code == "UPL"):
-                        content = data.split(b" ", 3)
-                        directory = content[1]
-                        mumber_of_files = content[2]
-                        files = content[3:][0]
+                    content = data.split(b" ", 3)
+                    directory = content[1]
+                    mumber_of_files = content[2]
+                    files = content[3:][0]
 
 
-                        if os.path.exists(USER_FILE+user):
-                            new_dir = USER_FILE + user + "/" + directory
-                            if not os.path.exists(new_dir):
-                                os.makedirs(new_dir)
+                    if os.path.exists(USER_FILE+user):
+                        new_dir = USER_FILE + user + "/" + directory
+                        if not os.path.exists(new_dir):
+                            os.makedirs(new_dir)
 
 
-                            for file in range(number_of_files):
-                                files = files.split(b" ", 4)
-                                current_file_info = files[0:4]
-                                current_file_size = int(current_file_info[3].decode())
-                                remainder = files[4:][0]
-                                data = remainder[0:current_file_size]
-                                files = remainder[current_file_size+1:]
-                                file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
-                                file.write(data)
-                                reply = "UPR OK"
-
-                        else:
-                            reply = "UPR NOK"
+                        for file in range(number_of_files):
+                            files = files.split(b" ", 4)
+                            current_file_info = files[0:4]
+                            current_file_size = int(current_file_info[3].decode())
+                            remainder = files[4:][0]
+                            data = remainder[0:current_file_size]
+                            files = remainder[current_file_size+1:]
+                            file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
+                            file.write(data)
+                            reply = "UPR OK"
 
                     else:
-                        user_response = "Unexpected"
+                        reply = "UPR NOK"
 
 
                 elif (response_code == "RSB"):
@@ -193,7 +188,17 @@ def client_tcp_thread(conn):
                     else:
                         files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
 
-                        reply = ["RBR"]
+                        reply = ["RBR", str(len(files_by_line))]
+
+                        for line in files_by_line:
+                            split_line = line.split()
+
+                            date = ".".join(split_line[5].split("-")[::-1])
+                            time = split_line[6].split(".")[0]
+                            filename = split_line[8]
+                            size = split_line[4]
+                            reply.extend([filename, date, time, size])
+
 
 
                 elif (response_code == "ERR"):
