@@ -91,12 +91,20 @@ def client_tcp_thread(conn):
     password = ""
     reply = ""
     
+    conn.settimeout(0.5)
     #infinite loop so that function do not terminate and thread do not end.
     while True:
          
         #Receiving from client
-        data = conn.recv(BUFFER_SIZE)
-
+        data = b''
+        buffer = conn.recv(BUFFER_SIZE)
+        while buffer:
+            data += buffer
+            try:
+                buffer = conn.recv(BUFFER_SIZE)
+            except socket.timeout:
+                break
+            
         if not data: 
             break
         else:
@@ -149,13 +157,9 @@ def client_tcp_thread(conn):
                 elif msg_split[0] == "BCK":
                     print("User: " + user + "\tCommand: Backup Directory")
                     
-                    data2 = conn.recv(BUFFER_SIZE)
-                    message2 = data2.decode()
-                    msg_split2 = message2.split()
-                    
-                    number_files = int(msg_split2[1])
-                    if (len(msg_split2) - 2) == (number_files * 4):
-                        directory_name = msg_split2[0]
+                    number_files = int(msg_split[2])
+                    if (len(msg_split) - 3) == (number_files * 4):
+                        directory_name = msg_split[1]
                         directory_path = USER_FILE + user + "/" + directory_name
                         bs_file_dir = directory_path + "/" + "BS.txt"
                         if not path.exists(directory_path):
@@ -192,9 +196,9 @@ def client_tcp_thread(conn):
                             bs_message_split = bs_message.split()
                             if bs_message_split[0] == "LUR" and bs_message_split[1] == "OK":
                                 reply = "BKR " + bs_ip + " " + str(bs_port) + " " + str(number_files)
-                                i = 2
-                                for i in range(len(msg_split2)):
-                                    reply += " " + msg_split2[i]
+                                i = 3
+                                for i in range(len(msg_split)):
+                                    reply += " " + msg_split[i]
                                 reply += "\n"
                             else:
                                 reply = "BKR EOF\n"
@@ -234,11 +238,7 @@ def client_tcp_thread(conn):
                 elif msg_split[0] == "LSF":
                     print("User: " + user + "\tCommand: List Directory Files")
                     
-                    data2 = conn.recv(BUFFER_SIZE)
-                    message2 = data2.decode()
-                    msg_split2 = message2.split()
-                    
-                    directory_name = msg_split2[0]
+                    directory_name = msg_split[1]
                     directory_path = USER_FILE + user + "/" + directory_name
                     bs_file_dir = directory_path + "/" + "BS.txt"
                     
@@ -262,19 +262,15 @@ def client_tcp_thread(conn):
                             reply = "LFD " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
                             i = 3
                             for i in range(len(bs_message_split)):
-                                reply += " " + msg_split[i]
+                                reply += " " + bs_message_split[i]
                             reply += "\n"
                         else:
                             reply = "LFD NOK\n"
                 elif msg_split[0] == "RST":
                     print("User: " + user + "\tCommand: Restore Directory")
                     
-                    data2 = conn.recv(BUFFER_SIZE)
-                    message2 = data2.decode()
-                    msg_split2 = message2.split()
-                    
-                    if len(msg_split2) == 1:
-                        directory_name = msg_split2[0]
+                    if len(msg_split) == 2:
+                        directory_name = msg_split[1]
                         directory_path = USER_FILE + user + "/" + directory_name
                         bs_file_dir = directory_path + "/" + "BS.txt"
                         
@@ -297,11 +293,7 @@ def client_tcp_thread(conn):
                 elif msg_split[0] == "DEL":
                     print("User: " + user + "\tCommand: Delete Directory")
                     
-                    data2 = conn.recv(BUFFER_SIZE)
-                    message2 = data2.decode()
-                    msg_split2 = message2.split()
-                    
-                    directory_name = msg_split2[0]
+                    directory_name = msg_split[0]
                     directory_path = USER_FILE + user + "/" + directory_name
                     bs_file_dir = directory_path + "/" + "BS.txt"
                     
@@ -457,3 +449,4 @@ if size_commands > 1 and size_commands < 4:
         print("Invalid number of commands!")
 else:
     parent()
+    
