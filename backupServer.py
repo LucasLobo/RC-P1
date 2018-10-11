@@ -8,6 +8,7 @@ from _thread import *
 from os import path
 
 
+
 USER_FILE = "./BackupServer/user_"
 BUFFER_SIZE = 1024
 
@@ -18,6 +19,10 @@ BS_IP = ""
 BS_PORT = 59000
 
 
+def is_valid_login(value):
+    if len(value) == 2 and len(value[0]) == 5 and value[0].isdigit() and len(value[1]) == 8 and value[1].isalnum():
+        return True
+    return False
 
 def client_udp(s):
     global CS_IP
@@ -61,27 +66,44 @@ def client_udp(s):
                 reply = "UAR ERR"
 
         elif (response_code == "LSF"):
-            "filler"
+            user = split_server_response[1]
+            directory = split_server_response[2]
+            new_dir = USER_FILE + user + "/" + directory
+
+            files_by_line = subprocess.check_output(['ls','-l','--full-time', new_dir]).decode().splitlines()[1:]
+            reply = ["LFD" + str(len(files_by_line))]
+
+            for line in files_by_line:
+                split_line = line.split()
+
+                date = ".".join(split_line[5].split("-")[::-1])
+                time = split_line[6].split(".")[0]
+                filename = split_line[8]
+                size = split_line[4]
+                reply.extend([filename, date, time, size])
+
 
         #elif (response_code == "LFD"):
 
-    elif (response_code == "LUR"):
-            user = split_server_response[1]
-            password = split_server_response[2]
+        elif (response_code == "LSU"):
+            if (len(split_server_response) >= 3) and is_valid_login(split_server_response[1:]):
+                user = split_server_response[1]
+                password = split_server_response[2]
 
-            user_file = USER_FILE + user + ".txt"
-            os.makedirs(USER_FILE + user)
+                user_file = USER_FILE + user + ".txt"
+                os.makedirs(USER_FILE + user)
 
-            if not path.exists(user_file):
-                f = open(user_file,"w+")
-                f.write(password)
-            else:
-                f = open(user_file,"r")
-                stored_pass = f.read()
-                if stored_pass == password:
+                if not path.exists(user_file):
+                    f = open(user_file,"w+")
+                    f.write(password)
+                    f.close()
                     reply = "LUR OK\n"
+
                 else:
                     reply = "LUR NOK\n"
+            else:
+                reply = "LUR ERR\n"
+
 
         elif (response_code == "DBR"):
             "filler"
@@ -130,41 +152,49 @@ def client_tcp_thread(conn):
                             reply = "AUR NOK\n"
 
                 elif (response_code == "UPL"):
-                    # QUESTION : Perguntar ao Lucas como fazer
-                    if len(split_client_response) == 2:
-                        status = split_client_response[1].decode()
-                        if status == "EOF":
-                            user_response = "Directory not found"
-                        elif status == "ERR":
-                            user_response = "Request not correctly formulated"
-                        else:
-                            user_response = "Unexpected"
-                    elif (len(split_server_response) >= 2) and (split_server_response[1].decode().isdigit()):
-                        content = client_response.split(b" ", 3)
-                        directory = split_client_response[1]
-                        mumber_of_files = split_client_response[2]
+                        content = data.split(b" ", 3)
+                        directory = content[1]
+                        mumber_of_files = content[2]
                         files = content[3:][0]
 
-                        if not os.path.exists(directory):
-                            os.makedirs(directory)
 
-                        for file in range(number_of_files):
-                            files = files.split(b" ", 4)
-                            current_file_info = files[0:4]
-                            current_file_size = int(current_file_info[3].decode())
-                            remainder = files[4:][0]
-                            data = remainder[0:current_file_size]
-                            files = remainder[current_file_size+1:]
-                            file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
-                            file.write(data)
+                        if os.path.exists(USER_FILE+user):
+                            new_dir = USER_FILE + user + "/" + directory
+                            if not os.path.exists(new_dir):
+                                os.makedirs(new_dir)
 
-                        user_response = "Successfully restored"
+
+                            for file in range(number_of_files):
+                                files = files.split(b" ", 4)
+                                current_file_info = files[0:4]
+                                current_file_size = int(current_file_info[3].decode())
+                                remainder = files[4:][0]
+                                data = remainder[0:current_file_size]
+                                files = remainder[current_file_size+1:]
+                                file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
+                                file.write(data)
+                                reply = "UPR OK"
+
+                        else:
+                            reply = "UPR NOK"
+
                     else:
                         user_response = "Unexpected"
 
 
                 elif (response_code == "RSB"):
-                    "filler"
+                    "recebe dir"
+                    directory = split_client_response[1]
+
+                    if not os.path.exists(directory):
+                        user_response = "Directory does not exit"
+                        display_fail_messages("Folder does not exist", "backup dir")
+
+                    else:
+                        files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
+
+                        reply = ["RBR"]
+
 
                 elif (response_code == "ERR"):
                     reply = "ERR\n"
