@@ -97,7 +97,12 @@ def client_tcp_thread(conn):
          
         #Receiving from client
         data = b''
-        buffer = conn.recv(BUFFER_SIZE)
+        
+        try:
+            buffer = conn.recv(BUFFER_SIZE)
+        except socket.timeout:
+            break
+            
         while buffer:
             data += buffer
             try:
