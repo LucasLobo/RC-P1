@@ -4,6 +4,8 @@ import socket
 import os.path
 import os
 import signal
+import subprocess
+import shutil
 from _thread import *
 from os import path
 
@@ -87,12 +89,10 @@ def client_tcp_thread(conn):
         number_of_files = int(content[2].decode())
         files = content[3:][0]
 
-
         if os.path.exists(USER_FILE+user):
             new_dir = USER_FILE + user + "/" + directory
             if not os.path.exists(new_dir):
                 os.makedirs(new_dir)
-
 
             for file in range(number_of_files):
                 files = files.split(b" ", 4)
@@ -104,16 +104,53 @@ def client_tcp_thread(conn):
                 file = open('./' + new_dir + '/' + current_file_info[0].decode(), 'wb')
                 file.write(data)
                 file.close()
-                reply = "UPR OK"
+
+            reply = ["UPR OK"]
 
         else:
-            reply = "UPR NOK"
-    else:
-        reply = "ERR"
+            reply = ["UPR NOK"]
+    elif (response_code == "RSB"):
+        if (len(client_response) == 2):
+            directory = USER_FILE + user + "/" + client_response[1]
 
-    reply += "\n"
-    print(reply)
-    conn.sendall(reply.encode())
+            if not os.path.exists(directory):
+                reply = ["RBR", "EOF"]
+
+            else:
+                files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
+
+                reply = ["RBR", str(len(files_by_line))]
+
+                for line in files_by_line:
+                    split_line = line.split()
+                    date = ".".join(split_line[5].split("-")[::-1])
+                    time = split_line[6].split(".")[0]
+                    filename = split_line[8]
+                    size = split_line[4]
+                    file = open(directory + "/" + filename, 'rb')
+                    file_data = file.read()
+                    file.close()
+                    reply.extend([filename, date, time, size])
+                    reply.append(file_data)
+        else:
+            reply = ["RBR","ERR"]
+
+    elif (response_code == "ERR"):
+        print("Error")
+    else:
+        reply = ["ERR"]
+
+    reply_len = len(reply)
+    if (reply_len):
+        for index in range (0,reply_len):
+            if type(reply[index]) is str:
+                conn.send(reply[index].encode())
+            else:
+                conn.send(reply[index])
+            if index < reply_len - 1:
+                conn.send(" ".encode())
+
+        conn.send("\n".encode())
     #came out of loop
     conn.close()
 
@@ -158,7 +195,28 @@ def process_cs_request(s,data,address,port):
     print(data.decode())
     split_server_response = data.decode().split()
     response_code = split_server_response[0]
-    if (response_code == "LSU"):
+
+    if (response_code == "LSF"):
+        user = split_server_response[1]
+        directory = split_server_response[2]
+        new_dir = USER_FILE + user + "/" + directory
+
+        files_by_line = subprocess.check_output(['ls','-l','--full-time', new_dir]).decode().splitlines()[1:]
+        print(files_by_line)
+        reply = "LFD " + str(len(files_by_line))
+
+        for line in files_by_line:
+            split_line = line.split()
+
+            date = ".".join(split_line[5].split("-")[::-1])
+            time = split_line[6].split(".")[0]
+            filename = split_line[8]
+            size = split_line[4]
+            reply += " " + filename + " " + date + " " + time + " " + size
+        reply += "\n"
+        print(reply)
+
+    elif (response_code == "LSU"):
         if (len(split_server_response) >= 3) and is_valid_login(split_server_response[1:]):
             user = split_server_response[1]
             password = split_server_response[2]
@@ -177,8 +235,21 @@ def process_cs_request(s,data,address,port):
         else:
             reply = "LUR ERR\n"
 
+    elif (response_code == "DLB"):
+        user = split_server_response[1]
+        directory = split_server_response[2]
+        rem_dir= USER_FILE + user + "/" + directory
 
-    s.sendto(reply.encode(), (address, port))
+        if os.path.exists(rem_dir):
+            shutil.rmtree(rem_dir)
+            reply = "DBR OK\n"
+        else:
+            reply = "DBR NOK\n"
+    elif (response_code == "ERR"):
+        print("Error")
+
+    if (reply):
+        s.sendto(reply.encode(), (address, port))
     # LSF user dir
     # LSU user pass
     # DLB user dir
@@ -219,7 +290,7 @@ def udp_server_init():
 
 
 #Function to initiate server with the the protocol passed by the parent
-def central_server_init(protocol):
+def backup_server_init(protocol):
     if protocol == 0:
         tcp_server_init()
     else:
@@ -257,7 +328,6 @@ def register_to_cs():
         else:
             reply = ""
 
-        print(reply)
         s.close()
 
     except socket.error as msg:
@@ -322,7 +392,7 @@ def parent():
             continue
 
         if pid == 0 :
-            central_server_init(i)
+            backup_server_init(i)
 
     for i in range(2):
         os.waitpid(0, 0)

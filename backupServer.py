@@ -72,7 +72,7 @@ def client_udp(s):
             new_dir = USER_FILE + user + "/" + directory
 
             files_by_line = subprocess.check_output(['ls','-l','--full-time', new_dir]).decode().splitlines()[1:]
-            reply = ["LFD" + str(len(files_by_line))]
+            reply = ["LFD", str(len(files_by_line))]
 
             for line in files_by_line:
                 split_line = line.split()

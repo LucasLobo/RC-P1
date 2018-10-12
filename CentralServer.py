@@ -58,17 +58,20 @@ def client_udp_thread(sock,data,addr):
             f.close()
 
             bs_word = BS_ip + "," + str(BS_port)
-            stored_bs_split = stored_bs.split(";")
+            stored_bs_split = stored_bs.split(";")[:-1]
+
 
             if bs_word in stored_bs_split:
+                print(stored_bs_split)
                 stored_bs_split.remove(bs_word)
                 new_bs_info = ""
+                print(stored_bs_split)
 
                 if len(stored_bs_split) > 0:
                     for i in range(len(stored_bs_split)):
                         new_bs_info += stored_bs_split[i] + ";"
 
-                f = open(BS_FILE,"w+")
+                f = open(BS_FILE,"w")
                 f.write(new_bs_info)
                 f.close
 
@@ -232,8 +235,8 @@ def client_tcp_thread(conn):
                             bs_message_split = bs_message.split()
                             if bs_message_split[0] == "LFD":
                                 reply = "BKR " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
-                                i = 2
-                                for i in range(len(bs_message_split)):
+
+                                for i in range(2, len(bs_message_split)):
                                     reply += " " + bs_message_split[i]
                                 reply += "\n"
                             else:
@@ -253,6 +256,14 @@ def client_tcp_thread(conn):
                         #Open BS file in dir
                         udp_message = "LSF " + user + " " + directory_name + "\n"
 
+                        f = open(bs_file_dir,"r")
+                        stored_bs = f.read()
+                        f.close()
+
+                        #Get BS
+                        bs_split = stored_bs.split(",")
+                        bs_ip = bs_split[0]
+                        bs_port = int(bs_split[1])
                         # Send and receive BS message
                         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
                         sock.sendto(udp_message.encode(), (bs_ip, bs_port))
@@ -265,8 +276,8 @@ def client_tcp_thread(conn):
                         bs_message_split = bs_message.split()
                         if bs_message_split[0] == "LFD":
                             reply = "LFD " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
-                            i = 3
-                            for i in range(len(bs_message_split)):
+
+                            for i in range(2, len(bs_message_split)):
                                 reply += " " + bs_message_split[i]
                             reply += "\n"
                         else:
@@ -292,13 +303,13 @@ def client_tcp_thread(conn):
                             bs_ip = bs_split[0]
                             bs_port = int(bs_split[1])
 
-                            reply = "RSR " + bs_ip + " " + bs_port + "\n"
+                            reply = "RSR " + bs_ip + " " + str(bs_port) + "\n"
                     else:
                         reply = "RSR ERR\n"
                 elif msg_split[0] == "DEL":
                     print("User: " + user + "\tCommand: Delete Directory")
 
-                    directory_name = msg_split[0]
+                    directory_name = msg_split[1]
                     directory_path = USER_FILE + user + "/" + directory_name
                     bs_file_dir = directory_path + "/" + "BS.txt"
 
