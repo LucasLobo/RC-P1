@@ -51,7 +51,7 @@ O utilizador dispõe dos seguintes comandos:
 
 -deluser
 
--bakcup dir
+-backup dir
 
 -restore dir
 

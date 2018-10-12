@@ -1,4 +1,4 @@
-# RC-P1
+﻿# RC-P1
 
 Projecto realizado no âmbito da cadeira de Redes e Computadores do curso de Engenharia Informática e de Computadores pelo grupo 54 constituido pelos seguintes elementos:
 
@@ -51,7 +51,7 @@ O utilizador dispõe dos seguintes comandos:
 
 -deluser
 
--bakcup dir
+-backup dir
 
 -restore dir
 
