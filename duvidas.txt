@@ -1,4 +1,0 @@
-
-
-> O que deve acontecer se durante um comando como LSD, a autenticação AUT falhar, após ter funcionado previamente no login inicial?
->> E se durante a execução, de certa forma o utilizador for apagado?

@@ -17,6 +17,30 @@ password = ""
 def debug(msg):
     print(msg)
 
+# Receives message until it finds \n and returns a bytes variable
+def receive_message_tcp(conn):
+    data = b''
+    buffer = conn.recv(BUFFER_SIZE)
+    buffer_split = buffer.split(b"\n")
+    while (len(buffer_split) == 1):
+        data += buffer
+        buffer = conn.recv(BUFFER_SIZE)
+        buffer_split = buffer.split(b"\n")
+
+    data += buffer_split[0] + b"\n"
+    return data
+
+# Sends whole message array to the server and separates characters by space
+def send_message_tcp(conn, message_array):
+    array_len = len(message_array)
+    for index in range(array_len):
+        if type(message_array[index]) is str:
+            conn.sendall(message_array[index].encode())
+        else:
+            conn.sendall(message_array[index])
+        if index < array_len - 1:
+            conn.sendall(" ".encode())
+    conn.sendall("\n".encode())
 
 def clear_auth():
     global username
@@ -57,34 +81,35 @@ def connect_to_server(ip, port, disconnect_on_end = False, user_login = False):
     except Exception as err:
         sys.exit("OS error (connect_to_server): {0}".format(err))
 
-    s.send(("AUT " + username + " " + password + "\n").encode())
-    server_response = s.recv(BUFFER_SIZE).decode()
-    user_response = ""
+
+    send_message_tcp(s, ["AUT", username, password])
+    server_response = receive_message_tcp(s).decode()
+    console_response = ""
 
     ok = False
     if server_response == "ERR\n":
-        user_response = "Error"
+        console_response = "Error"
         clear_auth()
 
     elif server_response == "AUR NEW\n":
-        user_response = "User \"" + username + "\" created"
+        console_response = "User \"" + username + "\" created"
 
     elif server_response == "AUR OK\n":
-        user_response = "User \"" + username + "\" login"
+        console_response = "User \"" + username + "\" login"
         ok = True
 
     elif server_response == "AUR NOK\n":
-        user_response = "Wrong password"
+        console_response = "Wrong password"
         clear_auth()
 
     else:
-        user_response = "Unknown"
+        console_response = "Unknown"
         clear_auth()
 
     # Check if return message should be printed: On a normal use
     # the OK message should only be printed during login
     if user_login or not ok:
-        print(user_response)
+        print(console_response)
 
     # Check if the socket should be returned or closed after connecting
     if disconnect_on_end:
@@ -124,7 +149,7 @@ def process_command(user_input):
         if len(user_input[1:]) == 1:
             directory = user_input[1]
             if not os.path.exists(directory):
-                user_response = "Directory does not exit"
+                console_response = "Directory does not exit"
                 display_fail_messages("Folder does not exist", "backup dir")
             else:
 
@@ -186,41 +211,19 @@ def process_client_request(client_request, server_type, ip = None, port = None):
         print("Server type \"" + server_type + "\" is not valid")
         return
 
-
-
-    debug("Pre-conectar" + server_type)
     s = connect_to_server(ip, port)
-    debug("Pos-conectar" + server_type)
-
-    client_request_len = len(client_request)
-
-    for index in range (0,client_request_len):
-        if type(client_request[index]) is str:
-            s.send(client_request[index].encode())
-        else:
-            s.send(client_request[index])
-        if index < client_request_len - 1:
-            s.send(" ".encode())
-
-    s.send("\n".encode())
-
-    server_response = b''
-    buffer = s.recv(BUFFER_SIZE)
-    while buffer:
-        server_response += buffer
-        buffer = s.recv(BUFFER_SIZE)
-
-    debug("Response from " + server_type + ": " + server_response.decode())
+    send_message_tcp(s, client_request)
+    server_response = receive_message_tcp(s)
 
     if not server_response:
         print("No return - " + server_type + ": " + " ".join(client_request))
     else:
-        user_response = ""
+        console_response = ""
         if server_type is CENTRAL_SERVER:
-            user_response = request_cs(client_request, server_response)
+            console_response = request_cs(client_request, server_response)
         elif server_type is BACKUP_SERVER:
-            user_response = request_bs(client_request, server_response)
-        print(user_response)
+            console_response = request_bs(client_request, server_response)
+        print(console_response)
     s.close()
 
 def request_cs(client_request, server_response):
@@ -232,24 +235,24 @@ def request_cs(client_request, server_response):
     if (response_code == "DLR"):
         status = split_server_response[1]
         if status == "OK":
-            user_response = "User \"" + username + "\" successfully deleted"
+            console_response = "User \"" + username + "\" successfully deleted"
             clear_auth()
 
         elif status == "NOK":
-            user_response = "Remove all files from cloud before deleting user"
+            console_response = "Remove all files from cloud before deleting user"
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
     # Backup directory
     elif (response_code == "BKR"):
         if len(split_server_response) == 2:
             if split_server_response[1] == "EOF":
-                user_response = "No BS server available. Try again later"
+                console_response = "No BS server available. Try again later"
 
             elif split_server_response[1] == "ERR":
-                user_response = "Request not correctly formulated"
+                console_response = "Request not correctly formulated"
             else:
-                user_response = "Unexpected"
+                console_response = "Unexpected"
 
         # sucess scenario
         elif (len(split_server_response) >= 4) and (split_server_response[2].isdigit()) and (split_server_response[3].isdigit()) and (len(split_server_response) == 4 + 4 * int(split_server_response[3])):
@@ -259,8 +262,8 @@ def request_cs(client_request, server_response):
             directory = client_request[1]
 
             if not os.path.exists(directory):
-                user_response = "Directory does not exit"
-                return user_response
+                console_response = "Directory does not exit"
+                return console_response
 
             number_of_files = int(split_server_response[3])
             client_request_bs = ["UPL", directory, str(number_of_files)]
@@ -274,85 +277,85 @@ def request_cs(client_request, server_response):
                 client_request_bs.append(file_data)
 
             process_client_request(client_request_bs, BACKUP_SERVER, ip, port)
-            user_response = "Backup server: " + ip + ":" + str(port)
+            console_response = "Backup server: " + ip + ":" + str(port)
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
     # Restore directory
     elif (response_code == "RSR"):
         if len(split_server_response) == 2:
             if split_server_response[1] == "EOK":
-                user_response = "No BS server available. Try again later"
+                console_response = "No BS server available. Try again later"
 
             elif split_server_response[1] == "ERR":
-                user_response = "Request not correctly formulated"
+                console_response = "Request not correctly formulated"
 
             else:
-                user_response = "Unexpected"
+                console_response = "Unexpected"
         elif len(split_server_response) == 3:
             ip = split_server_response[1]
             port = int(split_server_response[2])
             client_request_bs = ["RSB", client_request[1]]
 
             process_client_request(client_request_bs, BACKUP_SERVER, ip, port)
-            user_response = "Backup server: " + ip + ":" + str(port)
+            console_response = "Backup server: " + ip + ":" + str(port)
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
     # List directories
     elif (response_code == "LDR"):
         if split_server_response[1].isdigit():
             number_of_dirs = int(split_server_response[1])
-            user_response = "Number of directories: " + str(number_of_dirs)
+            console_response = "Number of directories: " + str(number_of_dirs)
             if number_of_dirs > 0:
-                user_response += "\n" + ' '.join(split_server_response[2:number_of_dirs+2])
+                console_response += "\n" + ' '.join(split_server_response[2:number_of_dirs+2])
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
 
     # List files in directory
     elif (response_code == "LFD"):
         if len(split_server_response) == 2:
             if split_server_response[1] == "NOK":
-                user_response = "Request cannot be answered"
+                console_response = "Request cannot be answered"
             else:
-                user_response = "Unexpected: " + server_response
+                console_response = "Unexpected: " + server_response
         elif (len(split_server_response) >= 4) and (split_server_response[2].isdigit()) and (split_server_response[3].isdigit()) and (len(split_server_response) == 4 + 4 * int(split_server_response[3])):
             ip = split_server_response[1]
             port = split_server_response[2]
 
             number_of_files = int(split_server_response[3])
 
-            user_response = "Number of files: " + str(number_of_files)
+            console_response = "Number of files: " + str(number_of_files)
 
             for file_number in range(0,number_of_files):
                 start_of_file_info = 4 + file_number * 4
                 end_of_file_info = 8 + file_number * 4
                 file_info = split_server_response[start_of_file_info : end_of_file_info]
                 readable_file_info = "Name: " + file_info[0] + " | Date: " + file_info[1] + " | Time: " + file_info[2] + " | Size: " + file_info[3] + " bytes"
-                user_response += "\n" + readable_file_info
+                console_response += "\n" + readable_file_info
 
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
     # Delete directory
     elif (response_code == "DDR"):
         status = split_server_response[1]
         if status == "OK":
-            user_response = "Directory successfully deleted"
+            console_response = "Directory successfully deleted"
 
         elif status == "NOK":
-            user_response = "Error removing directory"
+            console_response = "Error removing directory"
 
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
     elif (response_code == "ERR"):
-        user_response = "ERR"
+        console_response = "ERR"
 
     else:
-        user_response = "Unknown"
+        console_response = "Unknown"
 
-    return user_response
+    return console_response
 
 def request_bs(client_request, server_response):
     split_server_response = server_response.split()
@@ -361,21 +364,21 @@ def request_bs(client_request, server_response):
     if (response_code == "UPR"):
         status = split_server_response[1].decode()
         if status == "OK":
-            user_response = "Backup completed"
+            console_response = "Backup completed"
 
         elif status == "NOK":
-            user_response = "Backup failed"
+            console_response = "Backup failed"
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
     elif (response_code == "RBR"):
         if len(split_server_response) == 2:
             status = split_server_response[1].decode()
             if status == "EOF":
-                user_response = "Directory not found"
+                console_response = "Directory not found"
             elif status == "ERR":
-                user_response = "Request not correctly formulated"
+                console_response = "Request not correctly formulated"
             else:
-                user_response = "Unexpected"
+                console_response = "Unexpected"
         elif (len(split_server_response) >= 2) and (split_server_response[1].decode().isdigit()):
 
             content = server_response.split(b" ", 2)
@@ -396,13 +399,13 @@ def request_bs(client_request, server_response):
                 file = open('./' + directory + '/' + current_file_info[0].decode(), 'wb')
                 file.write(data)
 
-            user_response = "Successfully restored"
+            console_response = "Successfully restored"
         else:
-            user_response = "Unexpected"
+            console_response = "Unexpected"
 
     else:
-        user_response = "Unknown - BS"
-    return user_response
+        console_response = "Unknown - BS"
+    return console_response
 
 arg_number = len(sys.argv)
 

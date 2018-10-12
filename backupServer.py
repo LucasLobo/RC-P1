@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 import socket
-import os.path
 import os
 import signal
 import subprocess
@@ -10,35 +9,53 @@ from _thread import *
 from os import path
 
 
-
 USER_FILE = "./BackupServer/user_"
 BUFFER_SIZE = 1024
 
 CS_IP = socket.gethostbyname(socket.gethostname())
 CS_PORT = 58054
 
-BS_IP = ""
+BS_IP = socket.gethostbyname(socket.gethostname())
 BS_PORT = 59000
 
-
-def debug(message):
-    print(message)
 
 def is_valid_login(value):
     if len(value) == 2 and len(value[0]) == 5 and value[0].isdigit() and len(value[1]) == 8 and value[1].isalnum():
         return True
     return False
 
+def receive_message_tcp(conn):
+    data = b''
+    buffer = conn.recv(BUFFER_SIZE)
+    buffer_split = buffer.split(b"\n")
+    while (len(buffer_split) == 1):
+        data += buffer
+        buffer = conn.recv(BUFFER_SIZE)
+        buffer_split = buffer.split(b"\n")
+
+    data += buffer_split[0] + b"\n"
+    return data
+
+def send_message_tcp(conn, message_array):
+    array_len = len(message_array)
+    for index in range(array_len):
+        if type(message_array[index]) is str:
+            conn.sendall(message_array[index].encode())
+        else:
+            conn.sendall(message_array[index])
+        if index < array_len - 1:
+            conn.sendall(" ".encode())
+    conn.sendall("\n".encode())
+
+
 #Function for handling TCP connections. This will be used to create threads
 def client_tcp_thread(conn):
     global USER_FILE
     user = ""
     password = ""
-    reply = ""
+    server_request = ""
 
-    data = conn.recv(BUFFER_SIZE)
-
-    print("CLIENT TO BS :" + data.decode())
+    data = receive_message_tcp(conn)
 
     client_response = data.decode()
     split_client_response = client_response.split()
@@ -49,42 +66,30 @@ def client_tcp_thread(conn):
 
         user_file = USER_FILE + user + ".txt"
         if not path.exists(user_file):
-            reply = "AUR NOK\n"
+            server_request = ["AUR", "NOK"]
 
         else:
             f = open(user_file,"r")
             stored_pass = f.read()
             f.close()
             if stored_pass == password:
-                reply = "AUR OK\n"
+                server_request = ["AUR", "OK"]
             else:
-                reply = "AUR NOK\n"
+                server_request = ["AUR", "NOK"]
+    elif (response_code == "ERR"):
+        print("Error")
+    else:
+        server_request = ["ERR"]
 
-    print(reply)
-    conn.sendall(reply.encode())
+    if (server_request):
+        send_message_tcp(conn, server_request)
 
+    data = receive_message_tcp(conn)
+    client_response = data.split()
+    response_code = client_response[0].decode()
 
-
-
-    new_data = b''
-
-    conn.settimeout(0.5)
-    buffer = conn.recv(BUFFER_SIZE)
-
-    while buffer:
-        new_data += buffer
-        try:
-            buffer = conn.recv(BUFFER_SIZE)
-        except socket.timeout:
-            break
-
-
-    print("new_data: " + new_data.decode())
-    client_response = new_data.decode().split()
-    response_code = client_response[0]
-    print("response_code: " + response_code)
     if (response_code == "UPL"):
-        content = new_data.split(b" ", 3)
+        content = data.split(b" ", 3)
         directory = content[1].decode()
         number_of_files = int(content[2].decode())
         files = content[3:][0]
@@ -105,21 +110,21 @@ def client_tcp_thread(conn):
                 file.write(data)
                 file.close()
 
-            reply = ["UPR OK"]
+            server_request = ["UPR", "OK"]
 
         else:
-            reply = ["UPR NOK"]
+            server_request = ["UPR", "NOK"]
     elif (response_code == "RSB"):
         if (len(client_response) == 2):
-            directory = USER_FILE + user + "/" + client_response[1]
+            directory = USER_FILE + user + "/" + client_response[1].decode()
 
             if not os.path.exists(directory):
-                reply = ["RBR", "EOF"]
+                server_request = ["RBR", "EOF"]
 
             else:
                 files_by_line = subprocess.check_output(['ls','-l','--full-time', directory]).decode().splitlines()[1:]
 
-                reply = ["RBR", str(len(files_by_line))]
+                server_request = ["RBR", str(len(files_by_line))]
 
                 for line in files_by_line:
                     split_line = line.split()
@@ -130,27 +135,18 @@ def client_tcp_thread(conn):
                     file = open(directory + "/" + filename, 'rb')
                     file_data = file.read()
                     file.close()
-                    reply.extend([filename, date, time, size])
-                    reply.append(file_data)
+                    server_request.extend([filename, date, time, size])
+                    server_request.append(file_data)
         else:
-            reply = ["RBR","ERR"]
+            server_request = ["RBR", "ERR"]
 
     elif (response_code == "ERR"):
         print("Error")
     else:
-        reply = ["ERR"]
+        server_request = ["ERR"]
 
-    reply_len = len(reply)
-    if (reply_len):
-        for index in range (0,reply_len):
-            if type(reply[index]) is str:
-                conn.send(reply[index].encode())
-            else:
-                conn.send(reply[index])
-            if index < reply_len - 1:
-                conn.send(" ".encode())
-
-        conn.send("\n".encode())
+    if (server_request):
+        send_message_tcp(conn, server_request)
     #came out of loop
     conn.close()
 
@@ -163,9 +159,6 @@ def tcp_server_init():
     #Create Socket
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-    #Get Host Name
-    BS_IP = socket.gethostbyname(socket.gethostname())
 
     #Bind Socket to CS IP and CS PORT
     try:
@@ -182,7 +175,7 @@ def tcp_server_init():
     while True:
         #wait to accept a connection - blocking call
         conn, (addr,port) = s.accept()
-        print('Connected with ' + addr + ':' + str(port))
+        print('Connected with client at ' + addr + ':' + str(port))
 
         #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
         start_new_thread(client_tcp_thread ,(conn,))
@@ -192,7 +185,6 @@ def tcp_server_init():
 
 
 def process_cs_request(s,data,address,port):
-    print(data.decode())
     split_server_response = data.decode().split()
     response_code = split_server_response[0]
 
@@ -202,7 +194,6 @@ def process_cs_request(s,data,address,port):
         new_dir = USER_FILE + user + "/" + directory
 
         files_by_line = subprocess.check_output(['ls','-l','--full-time', new_dir]).decode().splitlines()[1:]
-        print(files_by_line)
         reply = "LFD " + str(len(files_by_line))
 
         for line in files_by_line:
@@ -214,7 +205,6 @@ def process_cs_request(s,data,address,port):
             size = split_line[4]
             reply += " " + filename + " " + date + " " + time + " " + size
         reply += "\n"
-        print(reply)
 
     elif (response_code == "LSU"):
         if (len(split_server_response) >= 3) and is_valid_login(split_server_response[1:]):
@@ -248,6 +238,9 @@ def process_cs_request(s,data,address,port):
     elif (response_code == "ERR"):
         print("Error")
 
+    else:
+        reply = "ERR\n"
+
     if (reply):
         s.sendto(reply.encode(), (address, port))
     # LSF user dir
@@ -264,9 +257,6 @@ def udp_server_init():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    #Get Host Name
-    BS_IP = socket.gethostbyname(socket.gethostname())
-
     #Bind Socket to BS IP and BS PORT
     try:
         s.bind((BS_IP, BS_PORT))
@@ -280,7 +270,7 @@ def udp_server_init():
     while True:
         #wait to accept a connection - blocking call
         data, (address,port) = s.recvfrom(BUFFER_SIZE)
-        print('Connected with ' + address)
+        print('Connected with CS at ' + address)
 
         #start new thread takes 1st argument as a function name to be run, second is the tuple of arguments to the function.
         process_cs_request(s,data,address,port)
@@ -301,7 +291,6 @@ def register_to_cs():
     global BS_IP
     global CS_PORT
 
-    BS_IP = socket.gethostbyname(socket.gethostname())
     Message = "REG " + BS_IP + " " + str(BS_PORT)
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -311,7 +300,7 @@ def register_to_cs():
 
         # Wait for response
         data, (address,port) = s.recvfrom(BUFFER_SIZE)
-        print('Connected with ' + address)
+        print('Connected with CS at ' + address)
         response = data.decode()
         split_server_response = response.split()
         response_code = split_server_response[0]
@@ -319,12 +308,16 @@ def register_to_cs():
         if (response_code == "RGR"):
             status = split_server_response[1]
             if status == "OK":
-                reply = "RGR OK"
+                reply = "Sucessfull connection"
 
             elif status == "NOK":
-                reply = "RGR NOK"
+                reply = "Unsucessfull connection"
+                print("Bind failed.")
+                sys.exit()
             else:
-                reply = "RGR ERR"
+                reply = "Unsucessfull connection"
+                print("Bind failed.")
+                sys.exit()
         else:
             reply = ""
 
@@ -340,7 +333,6 @@ def unregister_from_cs():
     global CS_PORT
 
     if (pid != 0):
-        BS_IP = socket.gethostbyname(socket.gethostname())
         Message = "UNR " + BS_IP + " " + str(BS_PORT)
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -366,8 +358,6 @@ def unregister_from_cs():
                     reply = "UAR ERR"
             else:
                 reply = ""
-
-            print(reply)
 
         except socket.error as msg:
             print('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
@@ -403,18 +393,29 @@ if not path.exists('BackupServer'):
 
 size_commands = len(sys.argv)
 
-if size_commands > 1 and size_commands < 4:
-    if size_commands == 3:
-        if sys.argv[1] == "-b":
-            try :
-                BS_PORT = int(sys.argv[2])
-            except ValueError:
-                print("Invalid Port!")
+if size_commands % 2 == 1 && size_commands <= 7:
+
+    number_of_options = (size_commands - 1)//2
+
+    try:
+        for index in range(0,number_of_options):
+            if sys.argv[2 * index + 1] == "-b":
+                BS_PORT = int(sys.argv[2 * index + 2])
+
+            elif sys.argv[2 * index + 1] == "-n":
+                CS_IP = socket.gethostbyname(sys.argv[2 * index + 2] + ".tecnico.ulisboa.pt")
+
+            elif sys.argv[2 * index + 1] == "-p":
+                CS_PORT = int(sys.argv[2 * index + 2])
+
             else:
-                parent()
-        else:
-            print("Invalid Command!")
-    else:
-        print("Invalid number of commands!")
-else:
+                print("Unknown option " + sys.argv[1])
+                sys.exit()
+    except:
+        print("Error reading commands")
+        sys.exit()
+
     parent()
+
+else:
+    print("Wrong number of arguments")
