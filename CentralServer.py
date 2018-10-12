@@ -249,8 +249,17 @@ def client_tcp_thread(conn):
 
                     if not path.exists(directory_path):
                         reply = "LFD NOK\n"
-                    else:
+                    else:        
                         #Open BS file in dir
+                        f = open(bs_file_dir,"r")
+                        stored_bs = f.read()
+                        f.close()
+
+                        #Get BS
+                        bs_split = stored_bs.split(",")
+                        bs_ip = bs_split[0]
+                        bs_port = int(bs_split[1])
+                            
                         udp_message = "LSF " + user + " " + directory_name + "\n"
 
                         # Send and receive BS message
