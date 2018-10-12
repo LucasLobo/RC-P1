@@ -228,11 +228,16 @@ def process_cs_request(s,data,address,port):
     elif (response_code == "DLB"):
         user = split_server_response[1]
         directory = split_server_response[2]
-        rem_dir= USER_FILE + user + "/" + directory
+        rem_dir = USER_FILE + user + "/" + directory
 
         if os.path.exists(rem_dir):
             shutil.rmtree(rem_dir)
             reply = "DBR OK\n"
+
+            if not os.listdir(USER_FILE + user):
+                shutil.rmtree(USER_FILE + user)
+                os.remove(USER_FILE + user + ".txt")
+            
         else:
             reply = "DBR NOK\n"
     elif (response_code == "ERR"):
@@ -393,7 +398,7 @@ if not path.exists('BackupServer'):
 
 size_commands = len(sys.argv)
 
-if size_commands % 2 == 1 && size_commands <= 7:
+if size_commands % 2 == 1 and size_commands <= 7:
 
     number_of_options = (size_commands - 1)//2
 
@@ -403,7 +408,7 @@ if size_commands % 2 == 1 && size_commands <= 7:
                 BS_PORT = int(sys.argv[2 * index + 2])
 
             elif sys.argv[2 * index + 1] == "-n":
-                CS_IP = socket.gethostbyname(sys.argv[2 * index + 2] + ".tecnico.ulisboa.pt")
+                CS_IP = sys.argv[2 * index + 2] + ".tecnico.ulisboa.pt"
 
             elif sys.argv[2 * index + 1] == "-p":
                 CS_PORT = int(sys.argv[2 * index + 2])

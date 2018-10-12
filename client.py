@@ -6,6 +6,7 @@ import os
 
 TCP_IP = socket.gethostbyname(socket.gethostname())
 TCP_PORT = 58054
+
 BUFFER_SIZE = 1024
 
 CENTRAL_SERVER = "CS"
@@ -407,24 +408,30 @@ def request_bs(client_request, server_response):
         console_response = "Unknown - BS"
     return console_response
 
-arg_number = len(sys.argv)
+size_commands = len(sys.argv)
 
-if arg_number%2 == 1 and arg_number <= 5:
-    current_arg = 1
+if size_commands % 2 == 1 and size_commands <= 7:
 
-    while current_arg <= 5 and current_arg + 1 <= arg_number:
-        if sys.argv[current_arg] == "-n" and sys.argv[current_arg+1].isalpha():
-            TCP_IP = sys.argv[current_arg+1] + '.tecnico.ulisboa.pt'
+    number_of_options = (size_commands - 1)//2
+    try:
+        for index in range(0,number_of_options):
+            if sys.argv[2 * index + 1] == "-n":
 
-        elif sys.argv[current_arg] == "-p" and sys.argv[current_arg+1].isdigit():
-            TCP_PORT = int(sys.argv[current_arg+1])
+                TCP_IP = sys.argv[2 * index + 2] + ".tecnico.ulisboa.pt"
+                print("ip mudou")
 
-        else:
-            sys.exit("Invalid Command!")
+            elif sys.argv[2 * index + 1] == "-p":
+                TCP_PORT = int(sys.argv[2 * index + 2])
 
-        current_arg += 2
+            else:
+                print("Unknown option " + sys.argv[1])
+                sys.exit()
+    except:
+        print("Error reading commands")
+        sys.exit()
+
 else:
-    sys.exit("Invalid Command!")
+    print("Wrong number of arguments")
 
 
 user_input = input("Please login\nWrite \"exit\" to exit\n>>> ")
