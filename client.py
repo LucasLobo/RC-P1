@@ -14,6 +14,10 @@ BACKUP_SERVER = "BS"
 username = ""
 password = ""
 
+def debug(msg):
+    print(msg)
+
+
 def clear_auth():
     global username
     global password
@@ -182,7 +186,11 @@ def process_client_request(client_request, server_type, ip = None, port = None):
         print("Server type \"" + server_type + "\" is not valid")
         return
 
+
+
+    debug("Pre-conectar" + server_type)
     s = connect_to_server(ip, port)
+    debug("Pos-conectar" + server_type)
 
     client_request_len = len(client_request)
 
@@ -202,8 +210,10 @@ def process_client_request(client_request, server_type, ip = None, port = None):
         server_response += buffer
         buffer = s.recv(BUFFER_SIZE)
 
+    debug("Response from " + server_type + ": " + server_response.decode())
+
     if not server_response:
-        print("No return: " + " ".join(client_request))
+        print("No return - " + server_type + ": " + " ".join(client_request))
     else:
         user_response = ""
         if server_type is CENTRAL_SERVER:

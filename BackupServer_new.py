@@ -36,242 +36,84 @@ def client_tcp_thread(conn):
 
     data = conn.recv(BUFFER_SIZE)
 
-    print(data.decode())
-    #infinite loop so that function do not terminate and thread do not end.
-    # while True:
-    #
-    #     #Receiving from client
-    #     data = conn.recv(BUFFER_SIZE)
-    #
-    #     if not data:
-    #         break
-    #     else:
-    #         message = data.decode()
-    #         msg_split = message.split()
-    #
-    #         try:
-    #             if msg_split[0] == "AUT" and len(msg_split) == 3:
-    #                 user = msg_split[1]
-    #                 password = msg_split[2]
-    #
-    #                 user_file = USER_FILE + user + ".txt"
-    #
-    #                 if not path.exists(user_file):
-    #                     os.makedirs(USER_FILE + user)
-    #                     f = open(user_file,"w+")
-    #                     f.write(password)
-    #                     f.close()
-    #                     reply = "AUR NEW\n"
-    #                     print("New user: " + user)
-    #                 else:
-    #                     f = open(user_file,"r")
-    #                     stored_pass = f.read()
-    #                     f.close()
-    #                     if stored_pass == password:
-    #                         reply = "AUR OK\n"
-    #                     else:
-    #                         reply = "AUR NOK\n"
-    #             elif msg_split[0] == "LSD" and len(msg_split) == 1:
-    #                 print("User: " + user + "\tCommand: List Directories")
-    #                 len_dirs = len(os.listdir(USER_FILE + user))
-    #                 if len_dirs != 0:
-    #                     list_dirs = os.listdir(USER_FILE + user)
-    #                     reply = "LDR " + str(len_dirs)
-    #                     for i in range(len_dirs):
-    #                         reply += " " + list_dirs[i]
-    #                     reply += "\n"
-    #                 else:
-    #                     reply = "LDR 0\n"
-    #             elif msg_split[0] == "DLU" and len(msg_split) == 1:
-    #                 print("User: " + user + "\tCommand: Delete User")
-    #                 len_dirs = len(os.listdir(USER_FILE + user))
-    #                 if len_dirs != 0:
-    #                     reply = "DLR NOK\n"
-    #                 else:
-    #                     os.rmdir(USER_FILE + user)
-    #                     os.remove(USER_FILE + user + ".txt")
-    #                     print("User " + user + " deleted")
-    #                     reply = "DLR OK\n"
-    #             elif msg_split[0] == "BCK":
-    #                 print("User: " + user + "\tCommand: Backup Directory")
-    #                 number_files = int(msg_split[2])
-    #                 if (len(msg_split) - 3) == (number_files * 4):
-    #                     directory_name = msg_split[1]
-    #                     directory_path = USER_FILE + user + "/" + directory_name
-    #                     bs_file_dir = directory_path + "/" + "BS.txt"
-    #                     if not path.exists(directory_path):
-    #                         os.makedirs(directory_path)
-    #
-    #                         #Open BS Database file
-    #                         f = open(BS_FILE,"r")
-    #                         stored_bs = f.read()
-    #                         f.close()
-    #
-    #                         #Get One BS
-    #                         bs_list = stored_bs.split(";")
-    #                         chosen_bs = bs_list[random.randint(0,len(bs_list)-2)]
-    #                         bs_split = chose_bs.split(",")
-    #                         bs_ip = bs_split[0]
-    #                         bs_port = int(bs_split[1])
-    #
-    #                         #Create BS file in dir
-    #                         f = open(bs_file_dir,"w+")
-    #                         f.write(chosen_bs)
-    #                         f.close()
-    #
-    #                         udp_message = "LSU " + user + " " + password + "\n"
-    #
-    #                         # Send and receive BS message
-    #                         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    #                         sock.sendto(udp_message.encode(), (bs_ip, bs_port))
-    #
-    #                         data, server = sock.recvfrom(BUFFER_SIZE)
-    #                         bs_message = data.decode()
-    #
-    #                         #Check BS response
-    #                         bs_message_split = bs_message.split()
-    #                         if bs_message_split[0] == "LUR" and bs_message_split[1] == "OK":
-    #                             reply = "BKR " + bs_ip + " " + str(bs_port) + " " + str(number_files)
-    #                             i = 3
-    #                             for i in range(len(msg_split)):
-    #                                 reply += " " + msg_split[i]
-    #                             reply += "\n"
-    #                         else:
-    #                             reply = "BKR EOF\n"
-    #                     else:
-    #                         #Open BS file in dir
-    #                         f = open(bs_file_dir,"r")
-    #                         stored_bs = f.read()
-    #                         f.close()
-    #
-    #                         #Get BS
-    #                         bs_split = stored_bs.split(",")
-    #                         bs_ip = bs_split[0]
-    #                         bs_port = int(bs_split[1])
-    #
-    #                         udp_message = "LSF " + user + " " + directory_name + "\n"
-    #
-    #                         # Send and receive BS message
-    #                         sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    #                         sock.sendto(udp_message.encode(), (bs_ip, bs_port))
-    #
-    #                         data, server = sock.recvfrom(BUFFER_SIZE)
-    #                         bs_message = data.decode()
-    #
-    #                         #Check BS response
-    #                         bs_message_split = bs_message.split()
-    #                         if bs_message_split[0] == "LFD":
-    #                             reply = "BKR " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
-    #                             i = 2
-    #                             for i in range(len(bs_message_split)):
-    #                                 reply += " " + msg_split[i]
-    #                             reply += "\n"
-    #                         else:
-    #                             reply = "BKR EOF\n"
-    #                 else:
-    #                     reply = "BKR ERR\n"
-    #             elif msg_split[0] == "LSF" and len(msg_split) == 2:
-    #                 print("User: " + user + "\tCommand: List Directory Files")
-    #                 directory_name = msg_split[1]
-    #                 directory_path = USER_FILE + user + "/" + directory_name
-    #                 bs_file_dir = directory_path + "/" + "BS.txt"
-    #
-    #                 if not path.exists(directory_path):
-    #                     reply = "LFD NOK\n"
-    #                 else:
-    #                     #Open BS file in dir
-    #                     f = open(bs_file_dir,"r")
-    #                     stored_bs = f.read()
-    #                     f.close()
-    #
-    #                     #Get BS
-    #                     bs_split = stored_bs.split(",")
-    #                     bs_ip = bs_split[0]
-    #                     bs_port = int(bs_split[1])
-    #
-    #                     udp_message = "LSF " + user + " " + directory_name + "\n"
-    #
-    #                     # Send and receive BS message
-    #                     sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    #                     sock.sendto(udp_message.encode(), (bs_ip, bs_port))
-    #
-    #                     data, server = sock.recvfrom(BUFFER_SIZE)
-    #                     bs_message = data.decode()
-    #
-    #                     #Check BS response
-    #                     bs_message_split = bs_message.split()
-    #                     if bs_message_split[0] == "LFD":
-    #                         reply = "LFD " + bs_ip + " " + str(bs_port) + " " + bs_message_split[1]
-    #                         i = 2
-    #                         for i in range(len(bs_message_split)):
-    #                             reply += " " + msg_split[i]
-    #                         reply += "\n"
-    #                     else:
-    #                         reply = "LFD NOK\n"
-    #             elif msg_split[0] == "RST":
-    #                 print("User: " + user + "\tCommand: Restore Directory")
-    #                 if len(msg_split) == 2:
-    #                     directory_name = msg_split[1]
-    #                     directory_path = USER_FILE + user + "/" + directory_name
-    #                     bs_file_dir = directory_path + "/" + "BS.txt"
-    #
-    #                     if not path.exists(directory_path):
-    #                         reply = "RSR EOF\n"
-    #                     else:
-    #                         #Open BS file in dir
-    #                         f = open(bs_file_dir,"r")
-    #                         stored_bs = f.read()
-    #                         f.close()
-    #
-    #                         #Get BS
-    #                         bs_split = stored_bs.split(",")
-    #                         bs_ip = bs_split[0]
-    #                         bs_port = int(bs_split[1])
-    #
-    #                         reply = "RSR " + bs_ip + " " + bs_port + "\n"
-    #                 else:
-    #                     reply = "RSR ERR\n"
-    #             elif msg_split[0] == "DEL" and len(msg_split) == 2:
-    #                 print("User: " + user + "\tCommand: Delete Directory")
-    #                 directory_name = msg_split[1]
-    #                 directory_path = USER_FILE + user + "/" + directory_name
-    #                 bs_file_dir = directory_path + "/" + "BS.txt"
-    #
-    #                 if not path.exists(directory_path):
-    #                     reply = "DDR NOK\n"
-    #                 else:
-    #                     #Open BS file in dir
-    #                     f = open(bs_file_dir,"r")
-    #                     stored_bs = f.read()
-    #                     f.close()
-    #
-    #                     #Get BS
-    #                     bs_split = stored_bs.split(",")
-    #                     bs_ip = bs_split[0]
-    #                     bs_port = int(bs_split[1])
-    #
-    #                     udp_message = "DLB " + user + " " + directory_name + "\n"
-    #
-    #                     # Send and receive BS message
-    #                     sock = socket.socket(socket.AF_INET,socket.SOCK_DGRAM)
-    #                     sock.sendto(udp_message.encode(), (bs_ip, bs_port))
-    #
-    #                     data, server = sock.recvfrom(BUFFER_SIZE)
-    #                     bs_message = data.decode()
-    #
-    #                     #Check BS response
-    #                     bs_message_split = bs_message.split()
-    #                     if bs_message_split[0] == "DBR" and bs_message_split[1] == "OK":
-    #                         shutil.rmtree(directory_path)
-    #                         reply = "DDR OK\n"
-    #                     else:
-    #                         reply = "DDR NOK\n"
-    #             else:
-    #                 reply = "ERR\n"
-    #         except IndexError:
-    #             break
-    #     conn.sendall(reply.encode())
+    print("CLIENT TO BS :" + data.decode())
 
+    client_response = data.decode()
+    split_client_response = client_response.split()
+    response_code = split_client_response[0]
+    if (response_code == "AUT"):
+        user = split_client_response[1]
+        password = split_client_response[2]
+
+        user_file = USER_FILE + user + ".txt"
+        if not path.exists(user_file):
+            reply = "AUR NOK\n"
+
+        else:
+            f = open(user_file,"r")
+            stored_pass = f.read()
+            f.close()
+            if stored_pass == password:
+                reply = "AUR OK\n"
+            else:
+                reply = "AUR NOK\n"
+
+    print(reply)
+    conn.sendall(reply.encode())
+
+
+
+
+    new_data = b''
+
+    conn.settimeout(0.5)
+    buffer = conn.recv(BUFFER_SIZE)
+
+    while buffer:
+        new_data += buffer
+        try:
+            buffer = conn.recv(BUFFER_SIZE)
+        except socket.timeout:
+            break
+
+
+    print("new_data: " + new_data.decode())
+    client_response = new_data.decode().split()
+    response_code = client_response[0]
+    print("response_code: " + response_code)
+    if (response_code == "UPL"):
+        content = new_data.split(b" ", 3)
+        directory = content[1].decode()
+        number_of_files = int(content[2].decode())
+        files = content[3:][0]
+
+
+        if os.path.exists(USER_FILE+user):
+            new_dir = USER_FILE + user + "/" + directory
+            if not os.path.exists(new_dir):
+                os.makedirs(new_dir)
+
+
+            for file in range(number_of_files):
+                files = files.split(b" ", 4)
+                current_file_info = files[0:4]
+                current_file_size = int(current_file_info[3].decode())
+                remainder = files[4:][0]
+                data = remainder[0:current_file_size]
+                files = remainder[current_file_size+1:]
+                file = open('./' + new_dir + '/' + current_file_info[0].decode(), 'wb')
+                file.write(data)
+                file.close()
+                reply = "UPR OK"
+
+        else:
+            reply = "UPR NOK"
+    else:
+        reply = "ERR"
+
+    reply += "\n"
+    print(reply)
+    conn.sendall(reply.encode())
     #came out of loop
     conn.close()
 
@@ -301,8 +143,6 @@ def tcp_server_init():
 
     #now keep talking with the client
     while True:
-
-        debug("a espera de cliente")
         #wait to accept a connection - blocking call
         conn, (addr,port) = s.accept()
         print('Connected with ' + addr + ':' + str(port))
